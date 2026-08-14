@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LEE TECH SERVICES | Elite Platform v11.0</title>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <title>LEE TECH SERVICES | Elite Platform</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="./config.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     <style>
         :root { 
             --accent: #00ff88; --blue: #3b82f6; --red: #ff4757;
@@ -211,7 +212,13 @@
             </div>
         </div>
 
-        <div class="section-title" style="margin-left:0; border-color: var(--red); color: var(--red);">DATABASE_MANAGEMENT_OVERRIDE</div>
+        <div class="section-title" style="margin-left:0; border-color: var(--red); color: var(--red);">ADMIN_CONTROL_CENTER</div>
+        <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:20px;">
+            <button class="btn btn-outline" onclick="exportAdminData()">EXPORT DATA</button>
+            <button class="btn btn-outline" onclick="triggerImportData()">IMPORT DATA</button>
+            <button class="btn btn-outline" style="border-color: var(--red); color: var(--red);" onclick="resetAllData()">RESET DATA</button>
+            <input id="fileImportInput" type="file" accept="application/json" style="display:none;" onchange="importAdminData(event)">
+        </div>
         <div id="adminControls" style="padding-bottom:100px;"></div>
     </div>
 
@@ -248,8 +255,232 @@
     </footer>
 
     <script>
-        const welcomeMessage = "LEE TECH DEV OS v11.0\n\n> Initializing Core Systems...\n> Establishing Secure Connection...\n> Syncing Cloud Infrastructure...";
-        let i = 0; let bootFinished = false;
+        const APP_CONFIG = Object.assign({
+            adminPin: "1234",
+            appName: "LEE_TECH_SERVICES",
+            appVersion: "v11.1",
+            siteTitle: "LEE TECH SERVICES | Elite Platform",
+            whatsappChannel: "https://whatsapp.com/channel/0029VbBu1EgJUM2iVI3tPE0S",
+            githubUrl: "https://github.com/networkserver06-commits",
+            supabaseUrl: "",
+            supabaseAnonKey: ""
+        }, window.APP_CONFIG || {});
+
+        document.title = APP_CONFIG.siteTitle || document.title;
+
+        const supabase = (APP_CONFIG.supabaseUrl && APP_CONFIG.supabaseAnonKey && window.supabase)
+            ? window.supabase.createClient(APP_CONFIG.supabaseUrl, APP_CONFIG.supabaseAnonKey)
+            : null;
+
+        const STORAGE_KEYS = {
+            projects: 'lee_tech_projects',
+            announcements: 'lee_tech_announcements',
+            logs: 'lee_tech_logs',
+            comments: 'lee_tech_comments'
+        };
+
+        const DEFAULT_PROJECTS = [
+            {
+                id: 1,
+                title: 'Elite Automation Suite',
+                description: 'Modern workflow engine built for performance, operations, and scalable deployment control.',
+                link: 'https://example.com',
+                image: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=1200&q=80'
+            },
+            {
+                id: 2,
+                title: 'Signal Boost Network',
+                description: 'Connected infrastructure suite for secure communication and rapid launch operations.',
+                link: 'https://example.com',
+                image: 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&w=1200&q=80'
+            }
+        ];
+
+        const DEFAULT_ANNOUNCEMENTS = [
+            { id: 1, content: 'SYSTEM_STABLE' },
+            { id: 2, content: 'ADMIN_CONTROLS_READY' },
+            { id: 3, content: 'LOCAL_SYNC_ACTIVE' }
+        ];
+
+        const DEFAULT_LOGS = [
+            { id: 1, title: 'System boot complete', content: 'Core services initialized and ready for secure operations.', date: new Date().toLocaleDateString() },
+            { id: 2, title: 'Admin control online', content: 'Administrative override panel is operational and fully managed locally.', date: new Date().toLocaleDateString() }
+        ];
+
+        const DEFAULT_COMMENTS = [
+            { id: 1, name: 'Client', text: 'Excellent service and professional delivery.', date: new Date().toLocaleDateString() }
+        ];
+
+        const welcomeMessage = "LEE TECH DEV OS v11.1\n\n> Initializing Core Systems...\n> Establishing Secure Connection...\n> Loading Local Administration Layer...";
+        let i = 0; let bootFinished = false; let bootTimeout;
+
+        let announcements = []; let blogPosts = []; let customProjects = []; let clientComments = [];
+
+        function setAppLinks() {
+            const waLink = document.querySelectorAll('[href*="whatsapp.com"]');
+            const ghLink = document.querySelectorAll('[href*="github.com"]');
+            waLink.forEach(el => el.href = APP_CONFIG.whatsappChannel);
+            ghLink.forEach(el => el.href = APP_CONFIG.githubUrl);
+        }
+
+        function normalizeState() {
+            customProjects = Array.isArray(customProjects) ? customProjects : [];
+            announcements = Array.isArray(announcements) ? announcements : [];
+            blogPosts = Array.isArray(blogPosts) ? blogPosts : [];
+            clientComments = Array.isArray(clientComments) ? clientComments : [];
+        }
+
+        function seedLocalStorage() {
+            if (!localStorage.getItem(STORAGE_KEYS.projects)) {
+                localStorage.setItem(STORAGE_KEYS.projects, JSON.stringify(DEFAULT_PROJECTS));
+            }
+            if (!localStorage.getItem(STORAGE_KEYS.announcements)) {
+                localStorage.setItem(STORAGE_KEYS.announcements, JSON.stringify(DEFAULT_ANNOUNCEMENTS));
+            }
+            if (!localStorage.getItem(STORAGE_KEYS.logs)) {
+                localStorage.setItem(STORAGE_KEYS.logs, JSON.stringify(DEFAULT_LOGS));
+            }
+            if (!localStorage.getItem(STORAGE_KEYS.comments)) {
+                localStorage.setItem(STORAGE_KEYS.comments, JSON.stringify(DEFAULT_COMMENTS));
+            }
+        }
+
+        async function fetchEverything() {
+            addLogLine('ESTABLISHING_CLOUD_LINK...');
+            if (supabase) {
+                try {
+                    // Create timeout promise
+                    const timeoutPromise = new Promise((_, reject) => 
+                        setTimeout(() => reject(new Error('Connection timeout (5s)')), 5000)
+                    );
+
+                    const queries = Promise.all([
+                        supabase.from('projects').select('*').order('id', { ascending: false }),
+                        supabase.from('announcements').select('*').order('id', { ascending: false }),
+                        supabase.from('logs').select('*').order('id', { ascending: false }),
+                        supabase.from('comments').select('*').order('id', { ascending: false })
+                    ]);
+
+                    const [{ data: projs, error: e1 }, { data: ticks, error: e2 }, { data: logs, error: e3 }, { data: comms, error: e4 }] = await Promise.race([queries, timeoutPromise]);
+
+                    if (e1 || e2 || e3 || e4) {
+                        throw new Error((e1 || e2 || e3 || e4).message || 'Supabase query failed');
+                    }
+
+                    customProjects = projs || [];
+                    announcements = ticks || [];
+                    blogPosts = logs || [];
+                    clientComments = comms || [];
+                    saveStateToStorage();
+                    renderTicker();
+                    renderArchive();
+                    renderProjects();
+                    renderComments();
+                    renderAdminControls();
+                    updateStats();
+                    addLogLine('CLOUD_SYNC_SUCCESSFUL');
+                    return;
+                } catch (error) {
+                    console.error('Supabase fetch error:', error);
+                    addLogLine('CRITICAL_ERROR: ' + (error?.message || 'Connection Refused'));
+                    showToast('Database sync failed, using local fallback', 'error');
+                }
+            }
+
+            loadStateFromStorage();
+        }
+
+        function loadStateFromStorage() {
+            seedLocalStorage();
+            try {
+                customProjects = JSON.parse(localStorage.getItem(STORAGE_KEYS.projects) || '[]');
+                announcements = JSON.parse(localStorage.getItem(STORAGE_KEYS.announcements) || '[]');
+                blogPosts = JSON.parse(localStorage.getItem(STORAGE_KEYS.logs) || '[]');
+                clientComments = JSON.parse(localStorage.getItem(STORAGE_KEYS.comments) || '[]');
+            } catch (error) {
+                console.error('Storage read error:', error);
+                customProjects = [...DEFAULT_PROJECTS];
+                announcements = [...DEFAULT_ANNOUNCEMENTS];
+                blogPosts = [...DEFAULT_LOGS];
+                clientComments = [...DEFAULT_COMMENTS];
+            }
+
+            renderTicker();
+            renderArchive();
+            renderProjects();
+            renderComments();
+            renderAdminControls();
+            updateStats();
+        }
+
+        function saveStateToStorage() {
+            localStorage.setItem(STORAGE_KEYS.projects, JSON.stringify(customProjects));
+            localStorage.setItem(STORAGE_KEYS.announcements, JSON.stringify(announcements));
+            localStorage.setItem(STORAGE_KEYS.logs, JSON.stringify(blogPosts));
+            localStorage.setItem(STORAGE_KEYS.comments, JSON.stringify(clientComments));
+        }
+
+        function exportAdminData() {
+            const payload = {
+                exportedAt: new Date().toISOString(),
+                projects: customProjects,
+                announcements: announcements,
+                logs: blogPosts,
+                comments: clientComments
+            };
+
+            const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'lee-tech-admin-backup.json';
+            link.click();
+            URL.revokeObjectURL(url);
+            showToast('Admin data exported');
+            addLogLine('ADMIN_EXPORT_CREATED');
+        }
+
+        function triggerImportData() {
+            document.getElementById('fileImportInput').click();
+        }
+
+        function importAdminData(event) {
+            const file = event.target.files && event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function () {
+                try {
+                    const data = JSON.parse(reader.result);
+                    customProjects = Array.isArray(data.projects) ? data.projects : customProjects;
+                    announcements = Array.isArray(data.announcements) ? data.announcements : announcements;
+                    blogPosts = Array.isArray(data.logs) ? data.logs : blogPosts;
+                    clientComments = Array.isArray(data.comments) ? data.comments : clientComments;
+                    saveStateToStorage();
+                    loadStateFromStorage();
+                    showToast('Admin data imported');
+                    addLogLine('ADMIN_IMPORT_SUCCESS');
+                } catch (error) {
+                    console.error('Import failed:', error);
+                    showToast('Invalid backup file', 'error');
+                    addLogLine('ADMIN_IMPORT_FAILED');
+                } finally {
+                    event.target.value = '';
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function resetAllData() {
+            if (!confirm('Reset all admin data back to default values?')) return;
+            localStorage.setItem(STORAGE_KEYS.projects, JSON.stringify(DEFAULT_PROJECTS));
+            localStorage.setItem(STORAGE_KEYS.announcements, JSON.stringify(DEFAULT_ANNOUNCEMENTS));
+            localStorage.setItem(STORAGE_KEYS.logs, JSON.stringify(DEFAULT_LOGS));
+            localStorage.setItem(STORAGE_KEYS.comments, JSON.stringify(DEFAULT_COMMENTS));
+            loadStateFromStorage();
+            showToast('System reset to defaults');
+            addLogLine('ADMIN_DATA_RESET');
+        }
 
         function typeWriter() {
             if (i < welcomeMessage.length && !bootFinished) {
@@ -263,6 +494,7 @@
         function endBootSequence() {
             if (bootFinished) return;
             bootFinished = true;
+            if (typeof bootTimeout !== 'undefined') clearTimeout(bootTimeout);
             document.getElementById('welcomeScreen').classList.add('fade-out');
             setTimeout(() => { document.getElementById('welcomeScreen').style.display = 'none'; showToast("System Initialization Complete", "success"); }, 800);
         }
@@ -279,40 +511,6 @@
             setTimeout(() => { if(container.contains(toast)) container.removeChild(toast); }, 4000);
         }
 
-        // --- SUPABASE CONFIG ---
-        const SUPABASE_URL = 'https://huwlolvzidzjdokyloyp.supabase.co';
-        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh1d2xvbHZ6aWR6amRva3lsb3lwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzExODc2MjksImV4cCI6MjA4Njc2MzYyOX0.APAK-vLlujxw-W6XcE5eRY5quQok07nOP-Cyxfn7MoQ';
-        const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-        const PIN = "1234";
-
-        let announcements = []; let blogPosts = []; let customProjects = []; let clientComments = [];
-
-        async function fetchEverything() {
-            addLogLine("ESTABLISHING_CLOUD_LINK...");
-            try {
-                const { data: projs, error: e1 } = await sb.from('projects').select('*').order('id', { ascending: false });
-                if (e1) throw e1;
-
-                const { data: ticks, error: e2 } = await sb.from('announcements').select('*').order('id', { ascending: false });
-                if (e2) throw e2;
-
-                const { data: logs, error: e3 } = await sb.from('logs').select('*').order('id', { ascending: false });
-                if (e3) throw e3;
-
-                const { data: comms, error: e4 } = await sb.from('comments').select('*').order('id', { ascending: false });
-                if (e4) throw e4;
-
-                customProjects = projs || []; announcements = ticks || []; blogPosts = logs || []; clientComments = comms || [];
-
-                renderTicker(); renderArchive(); renderProjects(); renderComments(); renderAdminControls(); updateStats();
-                addLogLine("CLOUD_SYNC_SUCCESSFUL");
-            } catch (e) {
-                console.error("Database Error:", e);
-                addLogLine("CRITICAL_ERROR: " + (e.message || "Connection Refused"));
-                showToast("Database Connection Failed", "error");
-            }
-        }
-
         function updateStats() {
             document.getElementById('statProj').innerText = customProjects.length;
             document.getElementById('statLogs').innerText = blogPosts.length;
@@ -322,8 +520,8 @@
         function renderTicker() {
             const container = document.getElementById('tickerItems');
             if (!announcements.length) { container.innerHTML = `<span class="tech-item">SYSTEM_STABLE</span>`; return; }
-            const items = announcements.map(a => `<span class="tech-item">${a.content.toUpperCase().replace(/\s/g, '_')}</span>`).join('');
-            container.innerHTML = items + items + items; // Triple for ultra-smooth loop
+            const items = announcements.map(a => `<span class="tech-item">${String(a.content || 'SYSTEM_STABLE').toUpperCase().replace(/\s/g, '_')}</span>`).join('');
+            container.innerHTML = items + items + items;
         }
 
         function renderProjects() {
@@ -332,8 +530,8 @@
             customProjects.forEach(p => {
                 const card = document.createElement('div');
                 card.className = 'card dynamic-card';
-                card.style.borderTop = "3px solid var(--accent)";
-                
+                card.style.borderTop = '3px solid var(--accent)';
+
                 let mediaHtml = '';
                 if (p.image) {
                     if (p.image.toLowerCase().endsWith('.mp4') || p.image.toLowerCase().endsWith('.webm')) {
@@ -342,7 +540,7 @@
                         mediaHtml = `<img src="${p.image}" class="project-img" alt="Banner" onerror="this.style.display='none'">`;
                     }
                 }
-                
+
                 card.innerHTML = `
                     ${mediaHtml}
                     <div class="card-content">
@@ -351,18 +549,21 @@
                                 <span style="color:var(--accent); font-family:'JetBrains Mono'; font-size:0.6rem; letter-spacing:1px;">[ACTIVE]</span>
                             </div>
                             <h3 style="font-size: 1.2rem; margin: 10px 0 5px;">${p.title}</h3>
-                            <p style="color:#cbd5e1; font-size:0.85rem; line-height: 1.6;">${p.description}</p>
+                            <p style="color:#cbd5e1; font-size:0.85rem; line-height: 1.6;">${p.description || 'No description available.'}</p>
                         </div>
-                        <a href="${p.link}" target="_blank" class="btn btn-outline" style="width:100%; margin-top: 20px;">ACCESS DEPLOYMENT</a>
+                        <a href="${p.link || '#'}" target="_blank" class="btn btn-outline" style="width:100%; margin-top: 20px;">ACCESS DEPLOYMENT</a>
                     </div>
                 `;
                 grid.appendChild(card);
             });
         }
-        
+
         function renderComments() {
             const container = document.getElementById('commentsDisplay');
-            if(clientComments.length === 0) { container.innerHTML = `<p style="color:#475569; font-size:0.8rem; font-family:'JetBrains Mono';">NO_TRANSMISSIONS_RECEIVED</p>`; return; }
+            if (clientComments.length === 0) {
+                container.innerHTML = `<p style="color:#475569; font-size:0.8rem; font-family:'JetBrains Mono';">NO_TRANSMISSIONS_RECEIVED</p>`;
+                return;
+            }
             container.innerHTML = clientComments.map(c => `
                 <div style="background: rgba(255,255,255,0.03); border-left: 3px solid var(--blue); padding:15px 20px; border-radius:12px; transition: transform 0.2s;">
                     <div style="display:flex; justify-content:space-between; align-items: center; margin-bottom: 8px;">
@@ -376,12 +577,15 @@
 
         function renderArchive() {
             const container = document.getElementById('archiveDisplay');
-            if(blogPosts.length === 0) { container.innerHTML = `<p style="color:#475569; font-size:0.8rem; font-family:'JetBrains Mono';">ARCHIVE_EMPTY</p>`; return; }
+            if (blogPosts.length === 0) {
+                container.innerHTML = `<p style="color:#475569; font-size:0.8rem; font-family:'JetBrains Mono';">ARCHIVE_EMPTY</p>`;
+                return;
+            }
             container.innerHTML = blogPosts.map(p => `
                 <div style="background:var(--glass); backdrop-filter: blur(10px); border:1px solid var(--border); padding:20px 25px; border-radius:16px; border-left: 3px solid #fff;">
                     <span style="color:var(--blue); font-size:0.6rem; font-family:'JetBrains Mono'; letter-spacing:1px;">${p.date}</span>
                     <h4 style="margin:8px 0; font-size: 1rem; color: #fff;">${p.title}</h4>
-                    <p style="margin:0; font-size:0.85rem; color:#cbd5e1; line-height:1.6;">${p.content}</p>
+                    <p style="margin:0; font-size:0.85rem; color:#cbd5e1; line-height:1.6;">${p.content || ''}</p>
                 </div>
             `).join('');
         }
@@ -396,7 +600,7 @@
                     </div>
                     <div class="admin-card">
                         <h4 style="margin-top:0; color:var(--blue); border-bottom: 1px solid rgba(59,130,246,0.2); padding-bottom: 10px;">LOGS</h4>
-                        ${blogPosts.length ? blogPosts.map(l => `<div style="font-size:0.8rem; padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.05); display:flex; justify-content:space-between; align-items:center;"><span style="color:#fff;">${l.title.substring(0,20)}...</span> <button onclick="deleteItem('logs', ${l.id})" class="del-btn">DELETE</button></div>`).join('') : '<p style="color:#475569; font-size:0.75rem;">No Data</p>'}
+                        ${blogPosts.length ? blogPosts.map(l => `<div style="font-size:0.8rem; padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.05); display:flex; justify-content:space-between; align-items:center;"><span style="color:#fff;">${String(l.title || '').substring(0, 20)}...</span> <button onclick="deleteItem('logs', ${l.id})" class="del-btn">DELETE</button></div>`).join('') : '<p style="color:#475569; font-size:0.75rem;">No Data</p>'}
                     </div>
                     <div class="admin-card">
                         <h4 style="margin-top:0; color:var(--red); border-bottom: 1px solid rgba(255,71,87,0.2); padding-bottom: 10px;">COMMENTS</h4>
@@ -404,99 +608,231 @@
                     </div>
                     <div class="admin-card">
                         <h4 style="margin-top:0; color:#fff; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 10px;">TICKERS</h4>
-                        ${announcements.length ? announcements.map(a => `<div style="font-size:0.8rem; padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.05); display:flex; justify-content:space-between; align-items:center;"><span style="color:#fff;">${a.content.substring(0,20)}...</span> <button onclick="deleteItem('announcements', ${a.id})" class="del-btn">DELETE</button></div>`).join('') : '<p style="color:#475569; font-size:0.75rem;">No Data</p>'}
+                        ${announcements.length ? announcements.map(a => `<div style="font-size:0.8rem; padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.05); display:flex; justify-content:space-between; align-items:center;"><span style="color:#fff;">${String(a.content || '').substring(0, 20)}...</span> <button onclick="deleteItem('announcements', ${a.id})" class="del-btn">DELETE</button></div>`).join('') : '<p style="color:#475569; font-size:0.75rem;">No Data</p>'}
                     </div>
                 </div>
             `;
         }
 
-        // --- BUTTON LOAD STATE HANDLER ---
         function setBtnLoading(btnId, isLoading, defaultText) {
             const btn = document.getElementById(btnId);
-            if(!btn) return;
+            if (!btn) return;
             btn.disabled = isLoading;
-            btn.innerText = isLoading ? "PROCESSING..." : defaultText;
+            btn.innerText = isLoading ? 'PROCESSING...' : defaultText;
         }
 
-        // --- DATABASE ACTIONS ---
         async function addNewProject() {
-            const t = document.getElementById('newProjTitle').value; const d = document.getElementById('newProjDesc').value;
-            const l = document.getElementById('newProjLink').value; const img = document.getElementById('newProjImg').value;
+            const t = document.getElementById('newProjTitle').value.trim();
+            const d = document.getElementById('newProjDesc').value.trim();
+            const l = document.getElementById('newProjLink').value.trim();
+            const img = document.getElementById('newProjImg').value.trim();
 
-            if(!t || !l) { showToast("Title and URL required", "error"); return; }
-            setBtnLoading('btnDeployProj', true);
+            if (!t || !l) {
+                showToast('Title and URL required', 'error');
+                return;
+            }
+
+            setBtnLoading('btnDeployProj', true, 'EXECUTE DEPLOYMENT');
             addLogLine(`EXECUTING_DEPLOYMENT: ${t}`);
-            
-            let payload = { title: t, description: d, link: l };
-            if(img) payload.image = img; 
 
-            const { error } = await sb.from('projects').insert([payload]);
+            if (supabase) {
+                const payload = { title: t, description: d, link: l, image: img || '' };
+                const { error } = await supabase.from('projects').insert([payload]);
+                setBtnLoading('btnDeployProj', false, 'EXECUTE DEPLOYMENT');
+                if (error) {
+                    addLogLine('DEPLOYMENT_FAILED');
+                    showToast('Database error', 'error');
+                    return;
+                }
+                addLogLine('DEPLOYMENT_SUCCESS');
+                document.getElementById('newProjTitle').value = '';
+                document.getElementById('newProjDesc').value = '';
+                document.getElementById('newProjLink').value = '';
+                document.getElementById('newProjImg').value = '';
+                showToast('Project deployed successfully');
+                await fetchEverything();
+                return;
+            }
+
+            const newProject = { id: Date.now(), title: t, description: d, link: l, image: img || '' };
+            customProjects.unshift(newProject);
+            saveStateToStorage();
+            renderProjects();
+            renderAdminControls();
+            updateStats();
+
+            document.getElementById('newProjTitle').value = '';
+            document.getElementById('newProjDesc').value = '';
+            document.getElementById('newProjLink').value = '';
+            document.getElementById('newProjImg').value = '';
             setBtnLoading('btnDeployProj', false, 'EXECUTE DEPLOYMENT');
-
-            if(error) { showToast("Database error", "error"); addLogLine("DEPLOYMENT_FAILED"); return; }
-            document.getElementById('newProjTitle').value = ''; document.getElementById('newProjDesc').value = '';
-            document.getElementById('newProjLink').value = ''; document.getElementById('newProjImg').value = '';
-            showToast("Project Deployed!"); addLogLine("DEPLOYMENT_SUCCESS"); fetchEverything();
+            showToast('Project deployed successfully');
+            addLogLine('DEPLOYMENT_SUCCESS');
         }
 
         async function submitComment() {
-            const n = document.getElementById('clientName').value; const m = document.getElementById('clientMsg').value;
-            if(!n || !m) { showToast("Name and Message required.", "error"); return; }
-            
-            setBtnLoading('btnSubmitReview', true);
-            const { error } = await sb.from('comments').insert([{ name: n, text: m, date: new Date().toLocaleDateString() }]);
-            setBtnLoading('btnSubmitReview', false, 'SUBMIT TRANSMISSION');
+            const n = document.getElementById('clientName').value.trim();
+            const m = document.getElementById('clientMsg').value.trim();
 
-            if(error) { showToast("Transmission Failed.", "error"); return; }
-            document.getElementById('clientName').value = ''; document.getElementById('clientMsg').value = '';
-            showToast("Transmission Sent Successfully!"); fetchEverything();
+            if (!n || !m) {
+                showToast('Name and message required.', 'error');
+                return;
+            }
+
+            setBtnLoading('btnSubmitReview', true, 'SUBMIT TRANSMISSION');
+
+            if (supabase) {
+                const payload = { name: n, text: m, date: new Date().toLocaleDateString() };
+                const { error } = await supabase.from('comments').insert([payload]);
+                setBtnLoading('btnSubmitReview', false, 'SUBMIT TRANSMISSION');
+                if (error) {
+                    showToast('Transmission Failed.', 'error');
+                    return;
+                }
+                document.getElementById('clientName').value = '';
+                document.getElementById('clientMsg').value = '';
+                showToast('Transmission sent successfully');
+                await fetchEverything();
+                return;
+            }
+
+            const newComment = { id: Date.now(), name: n, text: m, date: new Date().toLocaleDateString() };
+            clientComments.unshift(newComment);
+            saveStateToStorage();
+            renderComments();
+            renderAdminControls();
+            updateStats();
+
+            document.getElementById('clientName').value = '';
+            document.getElementById('clientMsg').value = '';
+            setBtnLoading('btnSubmitReview', false, 'SUBMIT TRANSMISSION');
+            showToast('Transmission sent successfully');
         }
 
         async function updateNews() {
-            const n = document.getElementById('newsInput').value;
-            if(!n) return;
-            setBtnLoading('btnSyncTicker', true);
-            addLogLine("SYNCING_GLOBAL_TICKER...");
-            await sb.from('announcements').insert([{ content: n }]);
+            const n = document.getElementById('newsInput').value.trim();
+            if (!n) return;
+
+            setBtnLoading('btnSyncTicker', true, 'SYNC TICKER');
+            addLogLine('SYNCING_GLOBAL_TICKER...');
+
+            if (supabase) {
+                const { error } = await supabase.from('announcements').insert([{ content: n }]);
+                setBtnLoading('btnSyncTicker', false, 'SYNC TICKER');
+                if (error) {
+                    showToast('Ticker update failed', 'error');
+                    return;
+                }
+                document.getElementById('newsInput').value = '';
+                showToast('Ticker broadcasted');
+                await fetchEverything();
+                return;
+            }
+
+            announcements.unshift({ id: Date.now(), content: n });
+            saveStateToStorage();
+            renderTicker();
+            renderAdminControls();
+
+            document.getElementById('newsInput').value = '';
             setBtnLoading('btnSyncTicker', false, 'SYNC TICKER');
-            document.getElementById('newsInput').value = ''; showToast("Ticker Broadcasted!"); fetchEverything();
+            showToast('Ticker broadcasted');
         }
 
         async function addBlogPost() {
-            const t = document.getElementById('postTitle').value; const c = document.getElementById('postContent').value;
-            if(!t) return;
-            setBtnLoading('btnPublishLog', true);
+            const t = document.getElementById('postTitle').value.trim();
+            const c = document.getElementById('postContent').value.trim();
+
+            if (!t) {
+                showToast('Log title required', 'error');
+                return;
+            }
+
+            setBtnLoading('btnPublishLog', true, 'ARCHIVE LOG');
             addLogLine(`ARCHIVING_LOG: ${t}`);
-            await sb.from('logs').insert([{ title: t, content: c, date: new Date().toLocaleDateString() }]);
+
+            if (supabase) {
+                const { error } = await supabase.from('logs').insert([{ title: t, content: c, date: new Date().toLocaleDateString() }]);
+                setBtnLoading('btnPublishLog', false, 'ARCHIVE LOG');
+                if (error) {
+                    showToast('Log publish failed', 'error');
+                    return;
+                }
+                document.getElementById('postTitle').value = '';
+                document.getElementById('postContent').value = '';
+                showToast('Log archived');
+                await fetchEverything();
+                return;
+            }
+
+            blogPosts.unshift({ id: Date.now(), title: t, content: c, date: new Date().toLocaleDateString() });
+            saveStateToStorage();
+            renderArchive();
+            renderAdminControls();
+            updateStats();
+
+            document.getElementById('postTitle').value = '';
+            document.getElementById('postContent').value = '';
             setBtnLoading('btnPublishLog', false, 'ARCHIVE LOG');
-            document.getElementById('postTitle').value = ''; document.getElementById('postContent').value = '';
-            showToast("Log Archived!"); fetchEverything();
+            showToast('Log archived');
         }
 
         async function deleteItem(table, id) {
-            if(!confirm(`CONFIRM DELETION FROM [${table.toUpperCase()}]? This action cannot be undone.`)) return;
+            if (!confirm(`CONFIRM DELETION FROM [${table.toUpperCase()}]? This action cannot be undone.`)) return;
             addLogLine(`INITIATING_ERASURE: TABLE[${table}] ID[${id}]`);
-            const { error } = await sb.from(table).delete().eq('id', id);
-            if(error) { showToast("Erasure Failed", "error"); addLogLine("ERASURE_FAILED"); return; }
-            showToast("Data Erased", "error"); addLogLine("ERASURE_COMPLETE"); fetchEverything();
+
+            if (supabase) {
+                const { error } = await supabase.from(table).delete().eq('id', id);
+                if (error) {
+                    showToast('Erasure failed', 'error');
+                    addLogLine('ERASURE_FAILED');
+                    return;
+                }
+                showToast('Data erased', 'error');
+                addLogLine('ERASURE_COMPLETE');
+                await fetchEverything();
+                return;
+            }
+
+            if (table === 'projects') {
+                customProjects = customProjects.filter(item => item.id !== id);
+            } else if (table === 'announcements') {
+                announcements = announcements.filter(item => item.id !== id);
+            } else if (table === 'logs') {
+                blogPosts = blogPosts.filter(item => item.id !== id);
+            } else if (table === 'comments') {
+                clientComments = clientComments.filter(item => item.id !== id);
+            }
+
+            saveStateToStorage();
+            renderTicker();
+            renderArchive();
+            renderProjects();
+            renderComments();
+            renderAdminControls();
+            updateStats();
+
+            showToast('Data erased', 'error');
+            addLogLine('ERASURE_COMPLETE');
         }
 
-        // --- UI UTILS ---
         function addLogLine(text) {
             const term = document.getElementById('log-terminal');
-            if(!term) return;
-            const l = document.createElement('div'); l.className = "log-line"; l.innerText = `[${new Date().toLocaleTimeString()}] > ${text}`;
-            term.appendChild(l); 
+            if (!term) return;
+            const l = document.createElement('div');
+            l.className = 'log-line';
+            l.innerText = `[${new Date().toLocaleTimeString()}] > ${text}`;
+            term.appendChild(l);
             const box = document.getElementById('terminalBox');
-            if(box) box.scrollTop = box.scrollHeight; // Auto-scrolls to the bottom
-            if(term.children.length > 20) term.firstChild.remove(); // Keep max 20 lines
+            if (box) box.scrollTop = box.scrollHeight;
+            if (term.children.length > 20) term.firstChild.remove();
         }
 
         function toggleMatrix() {
             document.body.classList.toggle('matrix-mode');
             const active = document.body.classList.contains('matrix-mode');
-            document.getElementById('ghostBtn').innerText = active ? "GHOST_MODE: ACTIVE" : "GHOST_MODE";
-            showToast(active ? "Ghost Protocol Engaged" : "Standard Interface Restored");
+            document.getElementById('ghostBtn').innerText = active ? 'GHOST_MODE: ACTIVE' : 'GHOST_MODE';
+            showToast(active ? 'Ghost Protocol Engaged' : 'Standard Interface Restored');
         }
 
         function toggleWaPopup() { document.getElementById('waPopup').classList.toggle('active'); }
@@ -504,17 +840,20 @@
         function closeAdminModal() { document.getElementById('adminAuthModal').classList.remove('active'); }
 
         function verifyAdmin() {
-            if(document.getElementById('adminPinInput').value === PIN) {
-                closeAdminModal(); document.getElementById('landing-page').style.display = 'none'; document.getElementById('admin-panel').style.display = 'block';
-                showToast("Root Access Verified. Welcome back."); addLogLine("ROOT_LOGIN_DETECTED"); fetchEverything();
-            } else { 
-                document.getElementById('adminError').style.display = 'block'; 
+            if (document.getElementById('adminPinInput').value === String(APP_CONFIG.adminPin)) {
+                closeAdminModal();
+                document.getElementById('landing-page').style.display = 'none';
+                document.getElementById('admin-panel').style.display = 'block';
+                showToast('Root Access Verified. Welcome back.');
+                addLogLine('ROOT_LOGIN_DETECTED');
+                loadStateFromStorage();
+            } else {
+                document.getElementById('adminError').style.display = 'block';
                 document.getElementById('adminPinInput').value = '';
-                showToast("Authentication Failed", "error");
+                showToast('Authentication Failed', 'error');
             }
         }
 
-        // Allow pressing Enter to submit password
         document.getElementById('adminPinInput').addEventListener('keypress', function (e) {
             if (e.key === 'Enter') verifyAdmin();
         });
@@ -524,8 +863,26 @@
             glow.style.transform = `translate(${e.clientX - 250}px, ${e.clientY - 250}px)`;
         });
 
-        window.onload = () => { typeWriter(); fetchEverything(); };
-        setInterval(() => { const s = ["UPLINK: OK", "CORE_TEMP: OPTIMAL", "MEM_ALLOC: STABLE", "DB: SYNCED", "NETWORK: SECURE"]; addLogLine(s[Math.floor(Math.random()*s.length)]); }, 8000);
+        setAppLinks();
+        seedLocalStorage();
+        
+        // Ensure boot completes within 8 seconds max
+        const bootTimeout = setTimeout(() => {
+            if (!bootFinished) {
+                addLogLine('BOOT_TIMEOUT: Forcing boot completion');
+                endBootSequence();
+            }
+        }, 8000);
+        
+        window.onload = () => {
+            typeWriter();
+            fetchEverything();
+        };
+        
+        setInterval(() => {
+            const s = ['UPLINK: OK', 'CORE_TEMP: OPTIMAL', 'MEM_ALLOC: STABLE', 'LOCAL: READY', 'NETWORK: SECURE'];
+            addLogLine(s[Math.floor(Math.random() * s.length)]);
+        }, 8000);
     </script>
 </body>
 </html>
