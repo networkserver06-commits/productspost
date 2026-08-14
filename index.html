@@ -28,8 +28,9 @@
         }
 
         /* --- Boot Sequence --- */
-        #welcomeScreen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; transition: opacity 0.8s ease, visibility 0.8s ease; }
-        #welcomeScreen.fade-out { opacity: 0; visibility: hidden; }
+        #welcomeScreen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; transition: opacity 0.8s ease, visibility 0.8s ease; opacity: 1; visibility: visible; }
+        #welcomeScreen.fade-out { opacity: 0; visibility: hidden; pointer-events: none; }
+        #landing-page { display: block; opacity: 1; }
         .typewriter-text { font-family: 'JetBrains Mono', monospace; color: var(--accent); font-size: 1.2rem; text-align: center; margin-bottom: 20px; white-space: pre-line; min-height: 80px; text-shadow: 0 0 10px rgba(0,255,136,0.5); }
         .loader-bar-container { width: 100%; max-width: 300px; height: 4px; background: #222; border-radius: 2px; overflow: hidden; margin-top: 10px; }
         .loader-progress { width: 0%; height: 100%; background: var(--accent); animation: loadProgress 2.5s ease-in-out forwards; }
@@ -312,9 +313,19 @@
         ];
 
         const welcomeMessage = "LEE TECH DEV OS v11.1\n\n> Initializing Core Systems...\n> Establishing Secure Connection...\n> Loading Local Administration Layer...";
-        let i = 0; let bootFinished = false; let bootTimeout;
-
+        let i = 0; let bootFinished = false; let bootTimeout = null;
         let announcements = []; let blogPosts = []; let customProjects = []; let clientComments = [];
+        
+        // IMMEDIATE: Show content right away, boot animation is optional
+        window.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                const welcomeScreen = document.getElementById('welcomeScreen');
+                const landingPage = document.getElementById('landing-page');
+                if (welcomeScreen) welcomeScreen.style.display = 'none';
+                if (landingPage) landingPage.style.display = 'block';
+                bootFinished = true;
+            }, 100);
+        });
 
         function setAppLinks() {
             const waLink = document.querySelectorAll('[href*="whatsapp.com"]');
@@ -483,24 +494,33 @@
         }
 
         function typeWriter() {
-            if (i < welcomeMessage.length && !bootFinished) {
-                document.getElementById("typewriterOutput").innerHTML += welcomeMessage.charAt(i);
-                i++; setTimeout(typeWriter, 25);
-            } else if (!bootFinished) {
-                setTimeout(endBootSequence, 600);
+            if (!bootFinished && i < welcomeMessage.length) {
+                const output = document.getElementById("typewriterOutput");
+                if (output) {
+                    output.innerHTML += welcomeMessage.charAt(i);
+                    i++;
+                    setTimeout(typeWriter, 25);
+                }
             }
         }
 
         function endBootSequence() {
             if (bootFinished) return;
             bootFinished = true;
-            if (typeof bootTimeout !== 'undefined') clearTimeout(bootTimeout);
-            document.getElementById('welcomeScreen').classList.add('fade-out');
-            setTimeout(() => { document.getElementById('welcomeScreen').style.display = 'none'; showToast("System Initialization Complete", "success"); }, 800);
+            if (bootTimeout) clearTimeout(bootTimeout);
+            
+            const welcomeScreen = document.getElementById('welcomeScreen');
+            if (welcomeScreen) {
+                welcomeScreen.classList.add('fade-out');
+                setTimeout(() => {
+                    welcomeScreen.style.display = 'none';
+                }, 800);
+            }
         }
 
-        window.addEventListener('keydown', endBootSequence);
-        document.getElementById('welcomeScreen').addEventListener('click', endBootSequence);
+        // Allow skip on any interaction
+        document.addEventListener('click', endBootSequence);
+        document.addEventListener('keydown', endBootSequence);
 
         function showToast(message, type = "success") {
             const container = document.getElementById('toastContainer');
@@ -866,16 +886,15 @@
         setAppLinks();
         seedLocalStorage();
         
-        // Ensure boot completes within 8 seconds max
-        const bootTimeout = setTimeout(() => {
-            if (!bootFinished) {
-                addLogLine('BOOT_TIMEOUT: Forcing boot completion');
-                endBootSequence();
-            }
-        }, 8000);
+        // Boot animation timeout - complete boot within 3 seconds
+        bootTimeout = setTimeout(() => {
+            endBootSequence();
+        }, 3000);
         
         window.onload = () => {
+            // Start typewriter animation
             typeWriter();
+            // Load data in background
             fetchEverything();
         };
         
