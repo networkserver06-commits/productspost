@@ -115,7 +115,7 @@
 </head>
 <body>
 
-    <div id="welcomeScreen">
+    <div id="welcomeScreen" style="display: none !important;">
         <div class="typewriter-text" id="typewriterOutput"></div>
         <div class="loader-bar-container"><div class="loader-progress"></div></div>
         <p style="color: #475569; font-family: 'JetBrains Mono'; font-size: 0.6rem; margin-top: 20px; letter-spacing: 2px;">[INITIALIZING]</p>
@@ -313,19 +313,8 @@
         ];
 
         const welcomeMessage = "LEE TECH DEV OS v11.1\n\n> Initializing Core Systems...\n> Establishing Secure Connection...\n> Loading Local Administration Layer...";
-        let i = 0; let bootFinished = false; let bootTimeout = null;
+        let i = 0; let bootFinished = true; let bootTimeout = null;
         let announcements = []; let blogPosts = []; let customProjects = []; let clientComments = [];
-        
-        // IMMEDIATE: Show content right away, boot animation is optional
-        window.addEventListener('DOMContentLoaded', () => {
-            setTimeout(() => {
-                const welcomeScreen = document.getElementById('welcomeScreen');
-                const landingPage = document.getElementById('landing-page');
-                if (welcomeScreen) welcomeScreen.style.display = 'none';
-                if (landingPage) landingPage.style.display = 'block';
-                bootFinished = true;
-            }, 100);
-        });
 
         function setAppLinks() {
             const waLink = document.querySelectorAll('[href*="whatsapp.com"]');
@@ -494,33 +483,14 @@
         }
 
         function typeWriter() {
-            if (!bootFinished && i < welcomeMessage.length) {
-                const output = document.getElementById("typewriterOutput");
-                if (output) {
-                    output.innerHTML += welcomeMessage.charAt(i);
-                    i++;
-                    setTimeout(typeWriter, 25);
-                }
-            }
+            // Boot animation disabled - content shows immediately
+            return;
         }
 
         function endBootSequence() {
-            if (bootFinished) return;
+            // Boot sequence disabled - site loads immediately
             bootFinished = true;
-            if (bootTimeout) clearTimeout(bootTimeout);
-            
-            const welcomeScreen = document.getElementById('welcomeScreen');
-            if (welcomeScreen) {
-                welcomeScreen.classList.add('fade-out');
-                setTimeout(() => {
-                    welcomeScreen.style.display = 'none';
-                }, 800);
-            }
         }
-
-        // Allow skip on any interaction
-        document.addEventListener('click', endBootSequence);
-        document.addEventListener('keydown', endBootSequence);
 
         function showToast(message, type = "success") {
             const container = document.getElementById('toastContainer');
@@ -886,15 +856,8 @@
         setAppLinks();
         seedLocalStorage();
         
-        // Boot animation timeout - complete boot within 3 seconds
-        bootTimeout = setTimeout(() => {
-            endBootSequence();
-        }, 3000);
-        
         window.onload = () => {
-            // Start typewriter animation
-            typeWriter();
-            // Load data in background
+            // Load data in background (no boot animation delays)
             fetchEverything();
         };
         
