@@ -844,17 +844,26 @@
             }
         }
 
-        document.getElementById('adminPinInput').addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') verifyAdmin();
+        document.addEventListener('DOMContentLoaded', () => {
+            // Add event listeners after DOM is ready
+            const adminPinInput = document.getElementById('adminPinInput');
+            if (adminPinInput) {
+                adminPinInput.addEventListener('keypress', function (e) {
+                    if (e.key === 'Enter') verifyAdmin();
+                });
+            }
+            
+            // Set app links and initialize storage
+            setAppLinks();
+            seedLocalStorage();
         });
 
         document.addEventListener('mousemove', (e) => {
             const glow = document.getElementById('mouseGlow');
-            glow.style.transform = `translate(${e.clientX - 250}px, ${e.clientY - 250}px)`;
+            if (glow) {
+                glow.style.transform = `translate(${e.clientX - 250}px, ${e.clientY - 250}px)`;
+            }
         });
-
-        setAppLinks();
-        seedLocalStorage();
         
         window.onload = () => {
             // Load data in background (no boot animation delays)
