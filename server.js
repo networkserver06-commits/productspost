@@ -51,7 +51,7 @@ function decryptNote(note) { const decipher = crypto.createDecipheriv('aes-256-g
 function deviceFromAgent(agent = '') { if (/mobile|android|iphone/i.test(agent)) return 'mobile'; if (/tablet|ipad/i.test(agent)) return 'tablet'; return 'desktop'; }
 function sessionHash(req) { return crypto.createHash('sha256').update(`${req.ip}|${req.headers['user-agent'] || ''}`).digest('hex').slice(0, 24); }
 
-app.get('/api/config', (req, res) => res.json({ whatsappNumber: process.env.WHATSAPP_NUMBER || '', brand: 'Lee Tech' }));
+app.get('/api/config', (req, res) => res.json({ whatsappNumber: process.env.WHATSAPP_NUMBER || '', whatsappGroupLink: process.env.WHATSAPP_GROUP_LINK || '', brand: 'Lee Tech' }));
 app.get('/api/products', async (req, res) => { try { const products = await Product.find().sort({ featured: -1, createdAt: -1 }).limit(24).lean(); res.set('Cache-Control', 's-maxage=60, stale-while-revalidate=300'); res.json(products); } catch { res.status(500).json({ error: 'Server error' }); } });
 app.get('/api/posts', async (req, res) => { try { const posts = await Post.find({ published: true }).sort({ createdAt: -1 }).limit(12).lean(); res.set('Cache-Control', 's-maxage=60, stale-while-revalidate=300'); res.json(posts); } catch { res.status(500).json({ error: 'Server error' }); } });
 app.post('/api/analytics/visit', async (req, res) => { try { await connectToDatabase(); await Visitor.create({ path: String(req.body.path || '/').slice(0, 200), referrer: String(req.body.referrer || 'direct').slice(0, 200), device: deviceFromAgent(req.headers['user-agent']), sessionHash: sessionHash(req) }); res.status(204).end(); } catch { res.status(204).end(); } });
