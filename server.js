@@ -9,6 +9,31 @@ const rateLimit = require('express-rate-limit');
 const morgan = require('morgan');
 const crypto = require('crypto');
 
+const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production';
+const MIN_SECRET_LENGTH = 32;
+function requiredEnv(name) {
+  const value = String(process.env[name] || '').trim();
+  if (!value) throw new Error(`${name} is required`);
+  return value;
+}
+function validateEnvironment() {
+  const missing = ['JWT_SECRET', 'NOTE_ENCRYPTION_KEY', 'ADMIN_USERNAME', 'ADMIN_PASSWORD'].filter(name => !String(process.env[name] || '').trim());
+  if (isProduction && !String(process.env.MONGODB_URI || '').trim()) missing.push('MONGODB_URI');
+  const weak = ['JWT_SECRET', 'NOTE_ENCRYPTION_KEY'].filter(name => {
+    const value = String(process.env[name] || '').trim();
+    return value && (value.length < MIN_SECRET_LENGTH || /change[-_ ]this|secret|password|example|lee-tech/i.test(value));
+  });
+  if (process.env.JWT_SECRET && process.env.NOTE_ENCRYPTION_KEY && process.env.JWT_SECRET === process.env.NOTE_ENCRYPTION_KEY) weak.push('JWT_SECRET and NOTE_ENCRYPTION_KEY must be different');
+  if (process.env.ADMIN_PASSWORD && String(process.env.ADMIN_PASSWORD).length < 12) weak.push('ADMIN_PASSWORD must be at least 12 characters');
+  const problems = [...new Set([...missing.map(name => `${name} is missing`), ...weak.map(name => `${name} is weak or invalid`)])];
+  if (problems.length) {
+    const message = `Environment validation failed: ${problems.join('; ')}`;
+    if (isProduction) throw new Error(message);
+    console.warn(`[config] ${message}. Admin authentication and encrypted notes will remain unavailable until corrected.`);
+  }
+}
+validateEnvironment();
+
 const app = express();
 app.set('trust proxy', 1);
 app.use(helmet({ contentSecurityPolicy: false }));
@@ -49,14 +74,14 @@ const SecurityAudit = mongoose.model('SecurityAudit', auditSchema);
 const authMiddleware = (req, res, next) => {
   const token = req.header('Authorization')?.replace('Bearer ', '');
   if (!token) return res.status(401).json({ error: 'Authentication required' });
-  try { req.admin = jwt.verify(token, process.env.JWT_SECRET); next(); } catch { res.status(401).json({ error: 'Invalid or expired token' }); }
+  try { req.admin = jwt.verify(token, requiredEnv('JWT_SECRET')); next(); } catch { res.status(401).json({ error: 'Invalid or expired token' }); }
 };
-const noteKey = () => crypto.createHash('sha256').update(process.env.NOTE_ENCRYPTION_KEY || process.env.JWT_SECRET || 'lee-tech-change-this-key').digest();
+const noteKey = () => crypto.createHash('sha256').update(requiredEnv('NOTE_ENCRYPTION_KEY')).digest();
 function encryptNote(text) { const iv = crypto.randomBytes(12); const cipher = crypto.createCipheriv('aes-256-gcm', noteKey(), iv); const ciphertext = Buffer.concat([cipher.update(String(text), 'utf8'), cipher.final()]); return { ciphertext: ciphertext.toString('base64'), iv: iv.toString('base64'), tag: cipher.getAuthTag().toString('base64') }; }
 function decryptNote(note) { const decipher = crypto.createDecipheriv('aes-256-gcm', noteKey(), Buffer.from(note.iv, 'base64')); decipher.setAuthTag(Buffer.from(note.tag, 'base64')); return Buffer.concat([decipher.update(Buffer.from(note.ciphertext, 'base64')), decipher.final()]).toString('utf8'); }
 function deviceFromAgent(agent = '') { if (/mobile|android|iphone/i.test(agent)) return 'mobile'; if (/tablet|ipad/i.test(agent)) return 'tablet'; return 'desktop'; }
 function sessionHash(req) { return crypto.createHash('sha256').update(`${req.ip}|${req.headers['user-agent'] || ''}`).digest('hex').slice(0, 24); }
-function ipHash(req) { return crypto.createHash('sha256').update(`${req.ip}|${process.env.JWT_SECRET || 'lee-tech'}`).digest('hex').slice(0, 16); }
+function ipHash(req) { return crypto.createHash('sha256').update(`${req.ip}|${requiredEnv('JWT_SECRET')}`).digest('hex').slice(0, 16); }
 function recordAudit(req, event, success, username = '') { return SecurityAudit.create({ event, success, username: String(username || '').slice(0, 80), device: deviceFromAgent(req.headers['user-agent']), userAgent: String(req.headers['user-agent'] || '').slice(0, 240), ipHash: ipHash(req) }).catch(() => {}); }
 
 app.get('/api/config', (req, res) => res.json({ whatsappNumber: process.env.WHATSAPP_NUMBER || '', whatsappGroupLink: process.env.WHATSAPP_GROUP_LINK || '', brand: 'Lee Tech' }));
@@ -64,7 +89,7 @@ app.get('/api/products', async (req, res) => { try { const products = await Prod
 app.get('/api/posts', async (req, res) => { try { const posts = await Post.find({ published: true }).sort({ createdAt: -1 }).limit(12).lean(); res.set('Cache-Control', 's-maxage=60, stale-while-revalidate=300'); res.json(posts); } catch { res.status(500).json({ error: 'Server error' }); } });
 app.post('/api/analytics/visit', async (req, res) => { try { await connectToDatabase(); await Visitor.create({ path: String(req.body.path || '/').slice(0, 200), referrer: String(req.body.referrer || 'direct').slice(0, 200), device: deviceFromAgent(req.headers['user-agent']), sessionHash: sessionHash(req) }); res.status(204).end(); } catch { res.status(204).end(); } });
 
-app.post('/api/auth/login', loginLimiter, async (req, res) => { const { username, password } = req.body; const valid = username === process.env.ADMIN_USERNAME && password === process.env.ADMIN_PASSWORD; recordAudit(req, 'sign_in', valid, username); if (valid) return res.json({ token: jwt.sign({ username }, process.env.JWT_SECRET, { expiresIn: '12h' }), message: 'Login successful', device: deviceFromAgent(req.headers['user-agent']) }); res.status(401).json({ error: 'Invalid credentials' }); });
+app.post('/api/auth/login', loginLimiter, async (req, res) => { const { username, password } = req.body; const valid = username === process.env.ADMIN_USERNAME && password === process.env.ADMIN_PASSWORD; recordAudit(req, 'sign_in', valid, username); if (valid) return res.json({ token: jwt.sign({ username }, requiredEnv('JWT_SECRET'), { expiresIn: '12h' }), message: 'Login successful', device: deviceFromAgent(req.headers['user-agent']) }); res.status(401).json({ error: 'Invalid credentials' }); });
 app.use('/api/admin', adminLimiter);
 app.get('/api/admin/stats', authMiddleware, async (req, res) => { try { const recent = await SecurityAudit.find().sort({ createdAt: -1 }).limit(8).lean(); res.json({ products: await Product.countDocuments(), posts: await Post.countDocuments(), featured: await Product.countDocuments({ featured: true }), visitors: await Visitor.countDocuments(), notes: await AdminNote.countDocuments(), currentDevice: deviceFromAgent(req.headers['user-agent']), recentActivity: recent.map(x => ({ event: x.event, username: x.username, device: x.device, success: x.success, createdAt: x.createdAt })) }); } catch { res.status(500).json({ error: 'Server error' }); } });
 app.get('/api/admin/security', authMiddleware, async (req, res) => { try { const rows = await SecurityAudit.find().sort({ createdAt: -1 }).limit(40).lean(); res.json(rows.map(x => ({ event: x.event, username: x.username, device: x.device, success: x.success, createdAt: x.createdAt }))); } catch { res.status(500).json({ error: 'Unable to read security activity' }); } });
