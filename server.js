@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const path = require('path');
+const fs = require('fs');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const morgan = require('morgan');
@@ -11,6 +12,33 @@ const crypto = require('crypto');
 
 const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production';
 const MIN_SECRET_LENGTH = 32;
+const htmlTemplate = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+const hashDirective = value => `'sha256-${crypto.createHash('sha256').update(value).digest('base64')}'`;
+const inlineHandlerHashes = [...htmlTemplate.matchAll(/\bon[a-z]+\s*=\s*["']([^"']*)["']/gi)].map(match => hashDirective(match[1]));
+const inlineStyleHashes = [...htmlTemplate.matchAll(/\bstyle\s*=\s*["']([^"']*)["']/gi)].map(match => hashDirective(match[1]));
+function buildCsp(nonce) {
+  return [
+    "default-src 'self'",
+    `script-src 'self' 'nonce-${nonce}'`,
+    `script-src-attr 'unsafe-hashes' ${inlineHandlerHashes.join(' ')}`,
+    `style-src 'self' 'nonce-${nonce}' https://fonts.googleapis.com`,
+    `style-src-attr 'unsafe-hashes' ${inlineStyleHashes.join(' ')}`,
+    "img-src 'self' data: https:",
+    "font-src 'self' https://fonts.gstatic.com",
+    "connect-src 'self'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'self'",
+    "object-src 'none'"
+  ].join('; ');
+}
+function allowedCorsOrigins() {
+  const configured = String(process.env.CORS_ORIGINS || '').split(',').map(origin => origin.trim()).filter(Boolean);
+  if (configured.length) return new Set(configured);
+  if (isProduction) return new Set();
+  return new Set(['http://localhost:3000', 'http://localhost:3200', 'http://localhost:5173']);
+}
+const corsOrigins = allowedCorsOrigins();
 function requiredEnv(name) {
   const value = String(process.env[name] || '').trim();
   if (!value) throw new Error(`${name} is required`);
@@ -19,6 +47,7 @@ function requiredEnv(name) {
 function validateEnvironment() {
   const missing = ['JWT_SECRET', 'NOTE_ENCRYPTION_KEY', 'ADMIN_USERNAME', 'ADMIN_PASSWORD'].filter(name => !String(process.env[name] || '').trim());
   if (isProduction && !String(process.env.MONGODB_URI || '').trim()) missing.push('MONGODB_URI');
+  if (isProduction && !String(process.env.CORS_ORIGINS || '').trim()) missing.push('CORS_ORIGINS');
   const weak = ['JWT_SECRET', 'NOTE_ENCRYPTION_KEY'].filter(name => {
     const value = String(process.env[name] || '').trim();
     return value && (value.length < MIN_SECRET_LENGTH || /change[-_ ]this|secret|password|example|lee-tech/i.test(value));
@@ -36,8 +65,14 @@ validateEnvironment();
 
 const app = express();
 app.set('trust proxy', 1);
+app.use((req, res, next) => {
+  const nonce = crypto.randomBytes(16).toString('base64');
+  res.locals.cspNonce = nonce;
+  res.setHeader('Content-Security-Policy', buildCsp(nonce));
+  next();
+});
 app.use(helmet({ contentSecurityPolicy: false }));
-app.use(cors());
+app.use(cors({ origin(origin, callback) { if (!origin || corsOrigins.has(origin)) return callback(null, true); return callback(new Error('CORS origin is not allowed')); }, credentials: false }));
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 app.use(morgan('dev'));
@@ -108,6 +143,7 @@ app.get('/api/admin/posts', authMiddleware, (req, res) => crud(Post, req, res, '
 app.post('/api/admin/posts', authMiddleware, (req, res) => crud(Post, req, res, 'create'));
 app.put('/api/admin/posts/:id', authMiddleware, (req, res) => crud(Post, req, res, 'update'));
 app.delete('/api/admin/posts/:id', authMiddleware, (req, res) => crud(Post, req, res, 'delete'));
-app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+app.use((err, req, res, next) => { if (err?.message === 'CORS origin is not allowed') return res.status(403).json({ error: 'CORS origin is not allowed' }); next(err); });
+app.get('*', (req, res) => res.type('html').send(htmlTemplate.replaceAll('__CSP_NONCE__', res.locals.cspNonce)));
 if (process.env.NODE_ENV !== 'production') app.listen(process.env.PORT || 3000, () => console.log(`Lee Tech running on http://localhost:${process.env.PORT || 3000}`));
 module.exports = app;
