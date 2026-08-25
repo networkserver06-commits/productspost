@@ -95,11 +95,24 @@ test('creator dashboard capabilities are wired to owner-scoped routes', async ()
   assert.match(script.body, /Posts & blogs/);
 });
 
-test('public username sites include customer-facing share actions', async () => {
+test('public username sites include customer-facing share and contact actions', async () => {
+  const server = require('node:fs').readFileSync('server.js', 'utf8');
   const script = await request('/app-upgrade.js');
+  assert.match(server, /whatsappNumber/);
+  assert.match(server, /whatsappGroupLink/);
+  assert.match(server, /instagramUrl/);
+  assert.match(server, /contactLinksForView/);
   assert.match(script.body, /data-share-site/);
   assert.match(script.body, /data-share-post/);
-  assert.match(script.body, /Only posts published by this user appear/);
+  assert.match(script.body, /renderPublicContactLinks/);
+  assert.match(script.body, /whatsappGroupLink/);
+  assert.match(script.body, /instagramUrl/);
+  assert.match(script.body, /Only posts and blogs published by this creator appear/);
+  assert.match(script.body, /upgrade-public-nav/);
+  assert.match(script.body, /upgrade-public-profile-card/);
+  assert.match(script.body, /upgrade-public-contact/);
+  assert.match(script.body, /upgrade-public-cta/);
+  assert.match(script.body, /upgrade-public-footer/);
 });
 
 test('creator dashboard uses a functional admin-style dropdown menu', async () => {

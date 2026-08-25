@@ -149,6 +149,18 @@ const userSchema = new mongoose.Schema({
   role: { type: String, enum: ['user', 'admin'], default: 'user' },
   displayName: { type: String, default: '', trim: true, maxlength: 120 },
   bio: { type: String, default: '', trim: true, maxlength: 600 },
+  contact: {
+    whatsappNumber: { type: String, default: '', trim: true, maxlength: 40 },
+    whatsappGroupLink: { type: String, default: '', trim: true, maxlength: 500 },
+    instagramUrl: { type: String, default: '', trim: true, maxlength: 500 },
+    facebookUrl: { type: String, default: '', trim: true, maxlength: 500 },
+    xUrl: { type: String, default: '', trim: true, maxlength: 500 },
+    linkedinUrl: { type: String, default: '', trim: true, maxlength: 500 },
+    tiktokUrl: { type: String, default: '', trim: true, maxlength: 500 },
+    youtubeUrl: { type: String, default: '', trim: true, maxlength: 500 },
+    telegramUrl: { type: String, default: '', trim: true, maxlength: 500 },
+    websiteUrl: { type: String, default: '', trim: true, maxlength: 500 }
+  },
   walletBalanceMinor: { type: Number, default: 0, min: 0 },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
@@ -188,8 +200,37 @@ function amountToMinor(value, allowZero = false) {
   return Math.round(amount * 100);
 }
 function minorToMajor(value) { return Number(value || 0) / 100; }
-function publicUser(user) { return { id: user._id, username: user.username, email: user.email, emailVerified: !!user.emailVerified, role: user.role, displayName: user.displayName || user.username, bio: user.bio || '', walletBalanceMinor: user.walletBalanceMinor || 0, siteUrl: `${PUBLIC_SITE_BASE_URL}/${user.username}`, createdAt: user.createdAt, lastSignedIn: user.lastSignedIn }; }
-function userSite(user, posts) { return { user: { username: user.username, displayName: user.displayName || user.username, bio: user.bio || '', siteUrl: `${PUBLIC_SITE_BASE_URL}/${user.username}` }, posts }; }
+const CONTACT_URL_FIELDS = ['whatsappGroupLink', 'instagramUrl', 'facebookUrl', 'xUrl', 'linkedinUrl', 'tiktokUrl', 'youtubeUrl', 'telegramUrl', 'websiteUrl'];
+function normalizeContactUrl(value, label) {
+  const raw = clean(value, 500);
+  if (!raw) return '';
+  const candidate = /^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? raw : `https://${raw}`;
+  try {
+    const parsed = new URL(candidate);
+    if (!['http:', 'https:'].includes(parsed.protocol) || !parsed.hostname) throw new Error('invalid protocol');
+    return parsed.toString().replace(/\/$/, '');
+  } catch {
+    throw new Error(`${label} must be a valid http(s) link`);
+  }
+}
+function normalizeContactLinks(input = {}) {
+  const raw = input && typeof input === 'object' ? input : {};
+  const whatsappNumber = clean(raw.whatsappNumber, 40);
+  const digits = whatsappNumber.replace(/\D/g, '');
+  if (whatsappNumber && (digits.length < 7 || digits.length > 15)) throw new Error('WhatsApp number must include 7–15 digits, preferably with a country code');
+  const contact = { whatsappNumber };
+  const labels = { whatsappGroupLink: 'WhatsApp group link', instagramUrl: 'Instagram link', facebookUrl: 'Facebook link', xUrl: 'X link', linkedinUrl: 'LinkedIn link', tiktokUrl: 'TikTok link', youtubeUrl: 'YouTube link', telegramUrl: 'Telegram link', websiteUrl: 'Website link' };
+  CONTACT_URL_FIELDS.forEach(field => { contact[field] = normalizeContactUrl(raw[field], labels[field]); });
+  return contact;
+}
+function contactLinksForView(value = {}) {
+  const raw = value && typeof value === 'object' ? value : {};
+  const result = { whatsappNumber: clean(raw.whatsappNumber, 40) };
+  CONTACT_URL_FIELDS.forEach(field => { try { result[field] = normalizeContactUrl(raw[field], field); } catch { result[field] = ''; } });
+  return result;
+}
+function publicUser(user) { return { id: user._id, username: user.username, email: user.email, emailVerified: !!user.emailVerified, role: user.role, displayName: user.displayName || user.username, bio: user.bio || '', contact: contactLinksForView(user.contact), walletBalanceMinor: user.walletBalanceMinor || 0, siteUrl: `${PUBLIC_SITE_BASE_URL}/${user.username}`, createdAt: user.createdAt, lastSignedIn: user.lastSignedIn }; }
+function userSite(user, posts) { return { user: { username: user.username, displayName: user.displayName || user.username, bio: user.bio || '', contact: contactLinksForView(user.contact), siteUrl: `${PUBLIC_SITE_BASE_URL}/${user.username}` }, posts }; }
 
 function randomToken() { return crypto.randomBytes(32).toString('hex'); }
 function randomVerificationCode() { return String(crypto.randomInt(100000, 1000000)); }
@@ -382,7 +423,7 @@ app.post('/api/auth/user/reset-password', requireDatabase, async (req, res) => {
 
 app.use('/api/me', requireDatabase);
 app.get('/api/me', userAuth, (req, res) => res.json({ user: publicUser(req.user) }));
-app.put('/api/me/profile', userAuth, verifiedUser, async (req, res) => { const displayName = clean(req.body.displayName || req.user.username, 120); const bio = clean(req.body.bio || '', 600); const changed = displayName !== req.user.displayName || bio !== req.user.bio; req.user.displayName = displayName; req.user.bio = bio; req.user.updatedAt = new Date(); await req.user.save(); if (changed) await sendAccountUpdateEmail(req.user, 'Profile details updated'); res.json({ user: publicUser(req.user) }); });
+app.put('/api/me/profile', userAuth, verifiedUser, async (req, res) => { try { const displayName = clean(req.body.displayName || req.user.username, 120); const bio = clean(req.body.bio || '', 600); const contact = normalizeContactLinks(req.body.contact || {}); const changed = displayName !== req.user.displayName || bio !== req.user.bio || JSON.stringify(contactLinksForView(req.user.contact)) !== JSON.stringify(contact); req.user.displayName = displayName; req.user.bio = bio; req.user.contact = contact; req.user.updatedAt = new Date(); await req.user.save(); if (changed) await sendAccountUpdateEmail(req.user, 'Profile and contact details updated'); res.json({ user: publicUser(req.user) }); } catch (error) { res.status(400).json({ error: error.message || 'Unable to update profile' }); } });
 app.post('/api/auth/user/change-password', requireDatabase, userAuth, verifiedUser, async (req, res) => { try { const currentPassword = String(req.body.currentPassword || ''); const newPassword = String(req.body.newPassword || ''); if (!verifyPassword(currentPassword, req.user.passwordSalt, req.user.passwordHash)) return res.status(400).json({ error: 'Current password is incorrect' }); if (newPassword.length < 12) return res.status(400).json({ error: 'New password must be at least 12 characters' }); const passwordData = hashPassword(newPassword); req.user.passwordHash = passwordData.hash; req.user.passwordSalt = passwordData.salt; req.user.updatedAt = new Date(); await req.user.save(); await sendAccountUpdateEmail(req.user, 'Password changed'); recordAudit(req, 'user_password_changed', true, req.user.username); res.json({ message: 'Password changed successfully' }); } catch { res.status(400).json({ error: 'Unable to change password' }); } });
 app.get('/api/me/posts', userAuth, async (req, res) => { res.json(await Post.find({ ownerId: req.user._id }).sort({ createdAt: -1 }).lean()); });
 app.post('/api/me/posts', userAuth, verifiedUser, async (req, res) => { const title = clean(req.body.title, 180); const content = clean(req.body.content, 50000); const excerpt = clean(req.body.excerpt || content.slice(0, 220), 500); const image = clean(req.body.image || '', 2000000); const published = req.body.published === true; if (!title || !content) return res.status(400).json({ error: 'Title and content are required' }); const session = await mongoose.startSession(); try { let post; let charge = 0; await session.withTransaction(async () => { const chargeResult = published ? await chargeForPost(req.user._id, title, session) : { priceMinor: 0 }; charge = chargeResult.priceMinor; const created = await Post.create([{ title, content, excerpt, image, author: req.user.displayName || req.user.username, published, ownerId: req.user._id, ownerUsername: req.user.username, updatedAt: new Date() }], { session }); post = created[0]; }); res.status(201).json({ post, chargedMinor: charge }); } catch (error) { if (error.code === 'INSUFFICIENT_BALANCE') return res.status(402).json({ error: 'Insufficient wallet balance. Top up before publishing.' }); res.status(400).json({ error: 'Unable to save post' }); } finally { await session.endSession(); } });
