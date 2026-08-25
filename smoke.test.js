@@ -80,3 +80,16 @@ test('server contains branded automated email templates', () => {
   assert.match(source, /reply/);
   assert.match(source, /Verification code/);
 });
+
+test('shared links receive dynamic social metadata and a generated PNG card', async () => {
+  const page = await request('/leetech?shareTitle=My%20new%20post&shareText=Ideas%20for%20better%20days');
+  assert.equal(page.status, 200);
+  assert.match(page.body, /property="og:image"/);
+  assert.match(page.body, /twitter:card/);
+  assert.match(page.body, /share-card\.png/);
+  assert.match(page.body, /My%20new%20post|My new post/);
+  const card = await request('/share-card.png?title=My%20new%20post&subtitle=Ideas%20for%20better%20days');
+  assert.equal(card.status, 200);
+  assert.match(card.headers['content-type'], /image\/png/);
+  assert.ok(Number(card.headers['content-length'] || 0) > 1000);
+});

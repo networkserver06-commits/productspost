@@ -90,3 +90,13 @@ https://post.leetec.online/<a-verified-username>
 ```
 
 `/api/health` should report a connected database. Register a test account, verify the email, create a draft, confirm the public username URL, initialize a Paystack test top-up, and confirm that the balance changes only after Paystack verification/webhook processing. Before enabling live payments, test duplicate webhook delivery and an amount-mismatch payload.
+
+## 6. Generated share images
+
+The existing share buttons now add a generated Lee Tech preview image to the share modal and encode the shared title and summary into the URL. Public pages return dynamic Open Graph and Twitter metadata for crawlers, including a real PNG image at:
+
+```text
+https://post.leetec.online/share-card.png?title=Your%20title&subtitle=Your%20summary
+```
+
+A shared post or username site can use query parameters such as `shareTitle` and `shareText`; the server uses them to generate the page title, description, and `og:image`. The share-card route is cached for short periods, so updated titles may take a few minutes to appear in a platform’s cached preview.

@@ -10,11 +10,13 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const morgan = require('morgan');
 const crypto = require('crypto');
+const sharp = require('sharp');
 
 const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production';
 const MIN_SECRET_LENGTH = 32;
-const APP_URL = String(process.env.APP_URL || 'http://localhost:3000').replace(/\/$/, '');
-const PUBLIC_SITE_BASE_URL = String(process.env.PUBLIC_SITE_BASE_URL || APP_URL).replace(/\/$/, '');
+function normalizeBaseUrl(value, fallback) { const raw = String(value || fallback).trim(); const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? raw : `https://${raw}`; try { return new URL(withScheme).toString().replace(/\/$/, ''); } catch { return fallback; } }
+const APP_URL = normalizeBaseUrl(process.env.APP_URL, 'http://localhost:3000');
+const PUBLIC_SITE_BASE_URL = normalizeBaseUrl(process.env.PUBLIC_SITE_BASE_URL || APP_URL, APP_URL);
 const PAYSTACK_CURRENCY = String(process.env.PAYSTACK_CURRENCY || 'KES').toUpperCase();
 const PAYSTACK_CHANNELS = String(process.env.PAYSTACK_CHANNELS || '').split(',').map(x => x.trim()).filter(Boolean);
 const htmlPath = path.join(process.cwd(), 'index.html');
@@ -203,6 +205,26 @@ function deviceFromAgent(agent = '') { if (/mobile|android|iphone/i.test(agent))
 function sessionHash(req) { return crypto.createHash('sha256').update(`${req.ip}|${req.headers['user-agent'] || ''}`).digest('hex').slice(0, 24); }
 function recordAudit(req, event, success, username = '') { return SecurityAudit.create({ event, success, username: clean(username, 80), device: deviceFromAgent(req.headers['user-agent']), userAgent: clean(req.headers['user-agent'], 240), ipHash: ipHash(req) }).catch(() => {}); }
 function escapeHtml(value = '') { return String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char])); }
+function shareCardSvg({ title = 'Lee Tech', subtitle = 'Technology with intention.', kicker = 'LEE TECH COMMUNITY' } = {}) {
+  const safeTitle = escapeHtml(clean(title || 'Lee Tech', 90));
+  const safeSubtitle = escapeHtml(clean(subtitle || 'Technology with intention.', 170));
+  const safeKicker = escapeHtml(clean(kicker || 'LEE TECH COMMUNITY', 42));
+  return `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#0e1b32"/><stop offset="1" stop-color="#1f5eff"/></linearGradient><linearGradient id="accent" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#bdebdc"/><stop offset="1" stop-color="#f1b247"/></linearGradient></defs><rect width="1200" height="630" fill="#f7f8fb"/><rect x="26" y="26" width="1148" height="578" rx="38" fill="url(#bg)"/><circle cx="1050" cy="70" r="230" fill="#1f5eff" opacity=".55"/><circle cx="110" cy="590" r="210" fill="#57c7ae" opacity=".35"/><circle cx="960" cy="520" r="130" fill="#f1b247" opacity=".18"/><rect x="86" y="84" width="68" height="68" rx="20" fill="#bdebdc"/><text x="120" y="132" text-anchor="middle" fill="#0e1b32" font-family="Arial,Helvetica,sans-serif" font-size="38" font-weight="800">L</text><text x="184" y="111" fill="#bdebdc" font-family="Arial,Helvetica,sans-serif" font-size="17" font-weight="700" letter-spacing="4">${safeKicker}</text><text x="184" y="146" fill="#fff" font-family="Arial,Helvetica,sans-serif" font-size="27" font-weight="700">Lee Tech</text><rect x="86" y="226" width="1028" height="276" rx="30" fill="#ffffff" opacity=".97"/><rect x="122" y="270" width="56" height="5" rx="3" fill="url(#accent)"/><text x="122" y="334" fill="#12233f" font-family="Arial,Helvetica,sans-serif" font-size="46" font-weight="800">${safeTitle}</text><text x="122" y="391" fill="#6d7b92" font-family="Arial,Helvetica,sans-serif" font-size="24">${safeSubtitle}</text><text x="122" y="454" fill="#1f5eff" font-family="Arial,Helvetica,sans-serif" font-size="18" font-weight="700">post.leetec.online</text><text x="1078" y="454" text-anchor="end" fill="#7d8798" font-family="Arial,Helvetica,sans-serif" font-size="18">Powered by Lee Tech</text></svg>`;
+}
+async function renderShareCard(options) { return sharp(Buffer.from(shareCardSvg(options))).png().toBuffer(); }
+function publicPathUsername(req) { const candidate = normalizeUsername(String(req.path || '').split('/').filter(Boolean)[0] || ''); return validUsername(candidate) ? candidate : ''; }
+function shareMetadata(req) {
+  const username = publicPathUsername(req);
+  const shareTitle = clean(req.query.shareTitle || '', 90);
+  const shareText = clean(req.query.shareText || '', 170);
+  const pageUrl = `${APP_URL}${req.originalUrl || req.path}`;
+  const title = shareTitle ? `${shareTitle} — Lee Tech` : username ? `@${username} — Lee Tech creator site` : 'Lee Tech — Technology with intention';
+  const description = shareText || (username ? `Published posts from @${username} on Lee Tech.` : 'Thoughtful products, practical systems, and clear ideas from Lee Tech.');
+  const imageUrl = new URL('/share-card.png', APP_URL);
+  imageUrl.searchParams.set('title', shareTitle || (username ? `@${username}` : 'Lee Tech'));
+  imageUrl.searchParams.set('subtitle', shareText || (username ? 'Published posts from a Lee Tech creator site.' : 'Technology with intention.'));
+  return htmlTemplate.replace('<title>Lee Tech — Technology with intention</title>', `<title>${escapeHtml(title)}</title><meta name="description" content="${escapeHtml(description)}"><meta property="og:type" content="website"><meta property="og:site_name" content="Lee Tech"><meta property="og:title" content="${escapeHtml(title)}"><meta property="og:description" content="${escapeHtml(description)}"><meta property="og:url" content="${escapeHtml(pageUrl)}"><meta property="og:image" content="${escapeHtml(imageUrl.toString())}"><meta property="og:image:type" content="image/png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${escapeHtml(title)}"><meta name="twitter:description" content="${escapeHtml(description)}"><meta name="twitter:image" content="${escapeHtml(imageUrl.toString())}">`);
+}
 
 function parseCookies(req) { return String(req.headers.cookie || '').split(';').reduce((out, part) => { const index = part.indexOf('='); if (index < 0) return out; out[part.slice(0, index).trim()] = decodeURIComponent(part.slice(index + 1).trim()); return out; }, {}); }
 function setCookie(res, name, value, maxAge) { const parts = [`${name}=${encodeURIComponent(value)}`, 'Path=/', 'HttpOnly', 'SameSite=Lax', `Max-Age=${Math.max(0, Math.floor(maxAge))}`]; if (isProduction) parts.push('Secure'); res.append('Set-Cookie', parts.join('; ')); }
@@ -428,9 +450,10 @@ app.put('/api/admin/posts/:id', (req, res) => crud(Post, req, res, 'update'));
 app.delete('/api/admin/posts/:id', (req, res) => crud(Post, req, res, 'delete'));
 
 app.get('/app-upgrade.js', (req, res) => { res.type('application/javascript').set('Cache-Control', 'no-store').send(upgradeScript); });
+app.get('/share-card.png', async (req, res) => { try { const title = clean(req.query.title || 'Lee Tech', 90); const subtitle = clean(req.query.subtitle || 'Technology with intention.', 170); const kicker = clean(req.query.kicker || 'LEE TECH COMMUNITY', 42); const image = await renderShareCard({ title, subtitle, kicker }); res.type('png').set('Cache-Control', 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400').send(image); } catch (error) { console.error('Share-card generation error:', error.message); res.status(500).end(); } });
 app.use('/api', (req, res) => res.status(404).json({ error: 'API route not found' }));
 app.use((err, req, res, next) => { if (err?.message === 'CORS origin is not allowed') return res.status(403).json({ error: 'CORS origin is not allowed' }); console.error(err); return res.status(500).json({ error: 'Server error' }); });
-app.get('*', (req, res) => res.type('html').send(htmlTemplate.replaceAll('__CSP_NONCE__', res.locals.cspNonce)));
+app.get('*', (req, res) => res.type('html').send(shareMetadata(req).replaceAll('__CSP_NONCE__', res.locals.cspNonce)));
 
 if (!isProduction) app.listen(process.env.PORT || 3000, () => console.log(`Lee Tech running on http://localhost:${process.env.PORT || 3000}`));
 module.exports = app;
