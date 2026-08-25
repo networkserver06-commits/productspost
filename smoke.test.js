@@ -57,3 +57,26 @@ test('client-side routes receive the nonce-bearing storefront shell', async () =
   assert.doesNotMatch(response.body, /__CSP_NONCE__/);
   assert.match(response.body, /\.upgrade-overlay\{position:fixed/);
 });
+
+test('auth upgrade includes password visibility and verification-code UX', async () => {
+  const script = await request('/app-upgrade.js');
+  assert.match(script.body, /data-password-toggle/);
+  assert.match(script.body, /upgradeVerifyForm/);
+  assert.match(script.body, /resend-verification/);
+  assert.match(script.body, /confirmPassword/);
+  assert.match(script.body, /passwordField/);
+  assert.match(script.body, /openAuth\('register'\)/);
+  const shell = await request('/');
+  assert.match(shell.body, /data-password-toggle/);
+});
+
+test('server contains branded automated email templates', () => {
+  const source = require('node:fs').readFileSync('server.js', 'utf8');
+  assert.match(source, /Powered by Lee Tech/);
+  assert.match(source, /automated email\. Please do not reply/);
+  assert.match(source, /randomVerificationCode/);
+  assert.match(source, /emailVerificationCodeHash/);
+  assert.match(source, /sendAccountUpdateEmail/);
+  assert.match(source, /reply/);
+  assert.match(source, /Verification code/);
+});

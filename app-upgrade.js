@@ -3,7 +3,7 @@
 
   const rootPath = window.location.pathname.replace(/^\/+|\/+$/g, '');
   const isPublicUserSite = !!rootPath && !rootPath.startsWith('api') && rootPath !== 'app-upgrade.js';
-  const userState = { user: null, wallet: null, mode: 'signin', post: null };
+  const userState = { user: null, wallet: null, mode: 'signin', post: null, pendingUsername: '' };
   const upgrade = {};
 
   function escapeHtml(value = '') {
@@ -23,6 +23,29 @@
     if (typeof window.toast === 'function') window.toast(message, type);
     else window.alert(message);
   }
+  function passwordField({ name = 'password', label = 'Password', autocomplete = 'new-password', hint = '', confirm = false } = {}) {
+    const inputName = confirm ? 'confirmPassword' : name;
+    const inputLabel = confirm ? 'Confirm password' : label;
+    return `<label class="upgrade-field password-field"><span>${inputLabel}</span><div class="password-control"><input type="password" name="${inputName}" autocomplete="${autocomplete}" minlength="12" required><button class="password-toggle" type="button" data-password-toggle aria-label="Show ${inputLabel.toLowerCase()}" aria-pressed="false"><span class="password-toggle-icon">◉</span><span class="password-toggle-label">Show</span></button></div>${hint && !confirm ? `<span class="upgrade-muted">${hint}</span>` : ''}</label>`;
+  }
+  function bindPasswordToggles(scope = document) {
+    scope.querySelectorAll('[data-password-toggle]').forEach(toggle => {
+      if (toggle.dataset.bound) return;
+      toggle.dataset.bound = 'true';
+      toggle.addEventListener('click', () => {
+        const input = toggle.parentElement?.querySelector('input');
+        if (!input) return;
+        const visible = input.type === 'text';
+        input.type = visible ? 'password' : 'text';
+        toggle.setAttribute('aria-pressed', String(!visible));
+        toggle.setAttribute('aria-label', `${visible ? 'Show' : 'Hide'} ${input.name === 'confirmPassword' ? 'confirm password' : 'password'}`);
+        const label = toggle.querySelector('.password-toggle-label');
+        if (label) label.textContent = visible ? 'Show' : 'Hide';
+        const icon = toggle.querySelector('.password-toggle-icon');
+        if (icon) icon.textContent = visible ? '◉' : '◌';
+      });
+    });
+  }
   function addStyles() {
     const nonce = document.querySelector('style[nonce]')?.getAttribute('nonce') || '';
     const style = document.createElement('style');
@@ -32,6 +55,16 @@
       .upgrade-user-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap}
       .upgrade-account-actions .upgrade-signin-button{display:inline-flex!important}
       .upgrade-user-button .user-dot{width:8px;height:8px;background:#57c7ae;border-radius:50%;display:inline-block}
+      .upgrade-field>span:first-child{display:block;font-weight:800;font-size:13px;margin-bottom:6px}
+      .password-control{display:flex;align-items:stretch;gap:0;position:relative}
+      .password-control input{padding-right:92px!important;min-width:0}
+      .password-toggle{position:absolute;right:6px;top:6px;bottom:6px;border:0;border-radius:9px;background:#eef3ff;color:#1f5eff;padding:0 10px;font-weight:800;font-size:12px;display:inline-flex;align-items:center;gap:5px;cursor:pointer}
+      .password-toggle:hover{background:#dce8ff}.password-toggle-icon{font-size:12px}.password-toggle-label{min-width:27px}
+      .upgrade-trust{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:18px 0}.upgrade-trust span{padding:10px;border:1px solid #e5e1d8;border-radius:12px;background:#faf9f5;color:#777d75;font-size:11px;text-align:center;font-weight:700}
+      .upgrade-verification-card{background:linear-gradient(135deg,#eef3ff,#f6fbf8);border:1px solid #dbe6f5;border-radius:16px;padding:16px;margin:18px 0}.upgrade-verification-card strong{display:block;color:#12233f;margin-bottom:5px}
+      .upgrade-code-input{letter-spacing:.3em;text-align:center;font-size:21px;font-weight:800}
+      .upgrade-text-button{border:0;background:transparent;color:#1f5eff;font-weight:800;padding:8px 0;text-align:left;cursor:pointer}.upgrade-text-button:hover{text-decoration:underline}
+      .upgrade-form button:disabled{opacity:.6;cursor:wait}
       .upgrade-overlay{position:fixed;inset:0;background:#07101bbf;backdrop-filter:blur(8px);z-index:110;display:none;place-items:center;padding:18px;overflow:auto}
       .upgrade-overlay.open{display:grid}
       .upgrade-panel{width:min(900px,100%);max-height:92vh;overflow:auto;background:#fffdf9;color:#1d211f;border-radius:24px;padding:28px;box-shadow:0 24px 80px #0006;position:relative}
@@ -69,7 +102,7 @@
       .upgrade-post time{color:#6d7b92;font-size:12px}
       .upgrade-admin-toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:0 0 16px}
       .upgrade-admin-toolbar input{flex:1;min-width:220px;padding:12px;border:1px solid #dedbd1;border-radius:12px;background:#fffdf9}
-      @media(max-width:700px){.upgrade-grid,.upgrade-post-grid{grid-template-columns:1fr}.upgrade-panel{padding:22px 17px}.upgrade-balance{font-size:34px}}
+      @media(max-width:700px){.upgrade-grid,.upgrade-post-grid{grid-template-columns:1fr}.upgrade-panel{padding:22px 17px}.upgrade-balance{font-size:34px}.upgrade-trust{grid-template-columns:1fr}.password-toggle{padding:0 8px}}
     `;
     document.head.appendChild(style);
   }
@@ -95,14 +128,24 @@
     const box = document.getElementById('upgradeAuthContent');
     const mode = userState.mode;
     if (mode === 'verify') {
-      box.innerHTML = `<div class="eyebrow">Almost there</div><h2>Check your inbox.</h2><p class="upgrade-muted">We sent a verification link to your email. Verify it before signing in or publishing.</p><div class="upgrade-actions"><button class="primary" data-auth-mode="signin">Back to sign in</button></div>`;
+      box.innerHTML = `<div class="eyebrow">Lee Tech community</div><h2>Verify your email.</h2><p class="upgrade-muted">We sent a secure verification link and a six-digit code. Use either one to activate your creator site.</p><div class="upgrade-verification-card"><strong>Check your inbox</strong><span class="upgrade-muted">The email is branded Lee Tech, powered by Lee Tech, and marked as an automated no-reply message.</span></div><form class="upgrade-form" id="upgradeVerifyForm"><label class="upgrade-field"><span>Verification code</span><input class="upgrade-code-input" name="code" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" placeholder="000000" autocomplete="one-time-code" required><span class="upgrade-muted">Enter the six-digit code from the email.</span></label><div class="upgrade-actions"><button class="primary" type="submit">Verify account</button><button class="ghost" type="button" id="upgradeResendButton">Send again</button></div><div id="upgradeVerifyMessage" class="upgrade-muted"></div></form><button class="upgrade-text-button" type="button" data-auth-mode="signin">Back to sign in</button>`;
+      box.querySelector('#upgradeVerifyForm').addEventListener('submit', submitVerification);
+      box.querySelector('#upgradeResendButton').addEventListener('click', resendVerification);
+      box.querySelectorAll('[data-auth-mode]').forEach(button => button.addEventListener('click', () => { userState.mode = button.dataset.authMode; renderAuth(); }));
       return;
     }
     const register = mode === 'register';
     const forgot = mode === 'forgot';
-    box.innerHTML = `<div class="eyebrow">Lee Tech community</div><h2>${register ? 'Create your site.' : forgot ? 'Reset your password.' : 'Welcome back.'}</h2><p class="upgrade-muted">${register ? 'Choose the username that becomes your public site link.' : forgot ? 'We will send a one-hour reset link if the account exists.' : 'Sign in to manage your posts, wallet, and services.'}</p>${!forgot ? `<div class="upgrade-tabs"><button class="upgrade-tab ${!register ? 'active' : ''}" data-auth-mode="signin">Sign in</button><button class="upgrade-tab ${register ? 'active' : ''}" data-auth-mode="register">Create account</button></div>` : ''}<form class="upgrade-form" id="upgradeAuthForm">${register ? '<label>Username<input name="username" minlength="3" maxlength="30" pattern="[a-z0-9-]+" placeholder="leetech" required><span class="upgrade-muted">Your public link: post.leetec.online/username</span></label>' : ''}${!register && !forgot ? '<label>Email<input type="email" name="email" autocomplete="email" required></label>' : ''}${forgot ? '<label>Email<input type="email" name="email" autocomplete="email" required></label>' : ''}${register ? '<label>Email<input type="email" name="email" autocomplete="email" required></label><label>Password<input type="password" name="password" minlength="12" autocomplete="new-password" required></label>' : ''}${!register && !forgot ? '<label>Password<input type="password" name="password" autocomplete="current-password" required></label>' : ''}<div class="upgrade-actions"><button class="primary" type="submit">${register ? 'Create account' : forgot ? 'Send reset link' : 'Sign in'}</button>${!register && !forgot ? '<button class="ghost" type="button" data-auth-mode="forgot">Forgot password?</button>' : ''}</div><div id="upgradeAuthMessage" class="upgrade-muted"></div></form>`;
+    const title = register ? 'Create your site.' : forgot ? 'Reset your password.' : 'Welcome back.';
+    const intro = register ? 'Choose the username that becomes your public site link.' : forgot ? 'We will send a secure one-hour reset link if the account exists.' : 'Sign in to manage your posts, wallet, and services.';
+    const formFields = register
+      ? '<label class="upgrade-field"><span>Username</span><input name="username" minlength="3" maxlength="30" pattern="[a-z0-9-]+" placeholder="leetech" autocomplete="username" required><span class="upgrade-muted">Your public link: post.leetec.online/username</span></label><label class="upgrade-field"><span>Email address</span><input type="email" name="email" autocomplete="email" required></label>' + passwordField({ hint: 'Use at least 12 characters for a stronger account.', confirm: false }) + passwordField({ confirm: true, autocomplete: 'new-password' })
+      : `<label class="upgrade-field"><span>Email address</span><input type="email" name="email" autocomplete="email" required></label>${forgot ? '' : passwordField({ label: 'Password', autocomplete: 'current-password' })}`;
+    box.innerHTML = `<div class="eyebrow">Lee Tech community</div><h2>${title}</h2><p class="upgrade-muted">${intro}</p>${!forgot ? `<div class="upgrade-tabs"><button class="upgrade-tab ${!register ? 'active' : ''}" data-auth-mode="signin">Sign in</button><button class="upgrade-tab ${register ? 'active' : ''}" data-auth-mode="register">Create account</button></div>` : ''}<div class="upgrade-trust"><span>Secure account</span><span>Private dashboard</span><span>Powered by Lee Tech</span></div><form class="upgrade-form" id="upgradeAuthForm">${formFields}<div class="upgrade-actions"><button class="primary" type="submit">${register ? 'Create account' : forgot ? 'Send reset link' : 'Sign in securely'}</button>${!register && !forgot ? '<button class="ghost" type="button" data-auth-mode="forgot">Forgot password?</button>' : ''}</div><div id="upgradeAuthMessage" class="upgrade-muted"></div></form>${!register && !forgot ? '<button class="upgrade-text-button" type="button" id="upgradeResendFromLogin">Need a new verification email?</button>' : ''}${register ? '<button class="upgrade-text-button" type="button" data-auth-mode="signin">Already have an account? Sign in</button>' : ''}`;
     box.querySelectorAll('[data-auth-mode]').forEach(button => button.addEventListener('click', () => { userState.mode = button.dataset.authMode; renderAuth(); }));
     box.querySelector('#upgradeAuthForm').addEventListener('submit', submitAuth);
+    if (!register && !forgot) box.querySelector('#upgradeResendFromLogin')?.addEventListener('click', resendFromLogin);
+    bindPasswordToggles(box);
   }
   async function submitAuth(event) {
     event.preventDefault();
@@ -110,12 +153,14 @@
     const message = form.querySelector('#upgradeAuthMessage');
     const values = Object.fromEntries(new FormData(form).entries());
     const button = form.querySelector('button[type=submit]');
+    if (userState.mode === 'register' && values.password !== values.confirmPassword) { message.textContent = 'Passwords do not match.'; return; }
     button.disabled = true;
     message.textContent = 'Working…';
     try {
       let data;
       if (userState.mode === 'register') {
-        data = await request('/api/auth/user/register', { method: 'POST', body: JSON.stringify(values) });
+        userState.pendingUsername = values.username;
+        data = await request('/api/auth/user/register', { method: 'POST', body: JSON.stringify({ username: values.username, email: values.email, password: values.password }) });
         userState.mode = 'verify';
         renderAuth();
         notify(data.message, 'success');
@@ -131,6 +176,38 @@
       }
     } catch (error) { message.textContent = error.message; }
     finally { button.disabled = false; }
+  }
+  async function submitVerification(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const message = form.querySelector('#upgradeVerifyMessage');
+    const button = form.querySelector('button[type=submit]');
+    const code = String(new FormData(form).get('code') || '').trim();
+    button.disabled = true;
+    message.textContent = 'Verifying…';
+    try {
+      const data = await request(`/api/auth/user/verify-email?code=${encodeURIComponent(code)}&username=${encodeURIComponent(userState.pendingUsername)}`);
+      notify(data.message, 'success');
+      userState.mode = 'signin';
+      renderAuth();
+    } catch (error) { message.textContent = error.message; }
+    finally { button.disabled = false; }
+  }
+  async function resendVerification() {
+    if (!userState.pendingUsername) return notify('Please start account creation again.', 'error');
+    try {
+      const data = await request('/api/auth/user/resend-verification', { method: 'POST', body: JSON.stringify({ username: userState.pendingUsername }) });
+      notify(data.message, 'success');
+    } catch (error) { notify(error.message, 'error'); }
+  }
+  async function resendFromLogin() {
+    const email = document.querySelector('#upgradeAuthForm input[name="email"]')?.value.trim();
+    const message = document.querySelector('#upgradeAuthMessage');
+    if (!email) { if (message) message.textContent = 'Enter your email address first.'; return; }
+    try {
+      const data = await request('/api/auth/user/resend-verification', { method: 'POST', body: JSON.stringify({ email }) });
+      if (message) message.textContent = data.message;
+    } catch (error) { if (message) message.textContent = error.message; }
   }
   async function loadUser() {
     try { userState.user = (await request('/api/me')).user; renderUserButton(); } catch { userState.user = null; renderUserButton(); }
@@ -245,8 +322,9 @@
     makeOverlay();
     const overlay = document.getElementById('upgradeUserOverlay');
     overlay.querySelector('.upgrade-panel').classList.add('narrow');
-    overlay.querySelector('#upgradeAuthContent').innerHTML = `<div class="eyebrow">Account security</div><h2>Choose a new password.</h2><p class="upgrade-muted">Resetting the password for @${escapeHtml(username)}.</p><form class="upgrade-form" id="upgradeResetForm"><label>New password<input type="password" name="password" minlength="12" autocomplete="new-password" required></label><div class="upgrade-actions"><button class="primary" type="submit">Save new password</button></div><div id="upgradeResetMessage" class="upgrade-muted"></div></form>`;
+    overlay.querySelector('#upgradeAuthContent').innerHTML = `<div class="eyebrow">Account security</div><h2>Choose a new password.</h2><p class="upgrade-muted">Resetting the password for @${escapeHtml(username)}.</p><form class="upgrade-form" id="upgradeResetForm">${passwordField({ label: 'New password', autocomplete: 'new-password', hint: 'Use at least 12 characters.' })}<div class="upgrade-actions"><button class="primary" type="submit">Save new password</button></div><div id="upgradeResetMessage" class="upgrade-muted"></div></form>`;
     overlay.classList.add('open');
+    bindPasswordToggles(overlay);
     overlay.querySelector('#upgradeResetForm').addEventListener('submit', async event => {
       event.preventDefault();
       const message = event.currentTarget.querySelector('#upgradeResetMessage');
@@ -348,6 +426,7 @@
 
   async function init() {
     addStyles();
+    bindPasswordToggles(document);
     if (isPublicUserSite) { await renderPublicUserSite(); return; }
     makeOverlay();
     renderUserButton();
