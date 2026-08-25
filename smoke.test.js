@@ -192,6 +192,9 @@ test('Paystack initialization and verification follow the documented payment con
   assert.match(source, /PAYSTACK_CURRENCY === 'KES' \? 400 : 1/);
   assert.match(source, /PAYSTACK_CALLBACK_URL/);
   assert.match(source, /callback_url: PAYSTACK_CALLBACK_URL/);
+  assert.match(source, /paymentReturnUrl/);
+  assert.match(source, /destination', 'account'/);
+  assert.match(source, /view', 'wallet'/);
   assert.match(source, /AbortSignal\.timeout\(15000\)/);
   assert.match(source, /PAYSTACK_UNAVAILABLE/);
   assert.match(source, /PAYSTACK_SECRET_KEY \|\| process\.env\.PAYSTACK_WEBHOOK_SECRET/);
@@ -204,6 +207,9 @@ test('Paystack initialization and verification follow the documented payment con
   assert.match(script.body, /Paystack did not return a valid secure checkout link/);
   assert.match(script.body, /upgradeTopupMessage/);
   assert.match(script.body, /Paystack checkout timed out/);
+  assert.match(script.body, /openDashboard\('wallet'\)/);
+  assert.match(script.body, /userState\.dashboardView = view/);
+  assert.match(script.body, /switchUserDashboardView\(userState\.dashboardView \|\| 'overview'\)/);
   assert.match(script.body, /name="amount" min="4"/);
 });
 

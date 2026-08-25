@@ -16,9 +16,10 @@ const sharp = require('sharp');
 const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production';
 const MIN_SECRET_LENGTH = 32;
 function normalizeBaseUrl(value, fallback) { const raw = String(value || fallback).trim(); const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? raw : `https://${raw}`; try { return new URL(withScheme).toString().replace(/\/$/, ''); } catch { return fallback; } }
+function paymentReturnUrl(value, fallback) { try { const url = new URL(normalizeBaseUrl(value, fallback)); url.searchParams.set('payment', 'complete'); url.searchParams.set('destination', 'account'); url.searchParams.set('view', 'wallet'); return url.toString(); } catch { return `${fallback}/?payment=complete&destination=account&view=wallet`; } }
 const APP_URL = normalizeBaseUrl(process.env.APP_URL || process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL, 'http://localhost:3000');
 const PUBLIC_SITE_BASE_URL = normalizeBaseUrl(process.env.PUBLIC_SITE_BASE_URL || APP_URL, APP_URL);
-const PAYSTACK_CALLBACK_URL = normalizeBaseUrl(process.env.PAYSTACK_CALLBACK_URL || `${PUBLIC_SITE_BASE_URL}/?payment=complete`, `${PUBLIC_SITE_BASE_URL}/?payment=complete`);
+const PAYSTACK_CALLBACK_URL = paymentReturnUrl(process.env.PAYSTACK_CALLBACK_URL || PUBLIC_SITE_BASE_URL, PUBLIC_SITE_BASE_URL);
 const PAYSTACK_CURRENCY = String(process.env.PAYSTACK_CURRENCY || 'KES').toUpperCase();
 const PAYSTACK_SUPPORTED_CHANNELS = new Set(['card', 'bank', 'apple_pay', 'ussd', 'qr', 'mobile_money', 'bank_transfer', 'eft', 'capitec_pay', 'payattitude']);
 const PAYSTACK_CHANNELS = String(process.env.PAYSTACK_CHANNELS || '').split(',').map(x => x.trim()).filter(x => PAYSTACK_SUPPORTED_CHANNELS.has(x));
