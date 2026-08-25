@@ -189,13 +189,18 @@ test('Paystack initialization and verification follow the documented payment con
   assert.match(source, /metadata: JSON\.stringify/);
   assert.match(source, /amount: String\(amountMinor\)/);
   assert.match(source, /PAYSTACK_MINIMUM_MINOR/);
+  assert.match(source, /PAYSTACK_CURRENCY === 'KES' \? 400 : 1/);
+  assert.match(source, /PAYSTACK_CALLBACK_URL/);
+  assert.match(source, /callback_url: PAYSTACK_CALLBACK_URL/);
   assert.match(source, /PAYSTACK_SECRET_KEY \|\| process\.env\.PAYSTACK_WEBHOOK_SECRET/);
   assert.match(source, /x-paystack-signature/);
   assert.match(source, /Payment is \$\{transaction\.status/);
   const script = await request('/app-upgrade.js');
   assert.match(script.body, /data-verify-payment/);
   assert.match(script.body, /Check status/);
-  assert.match(script.body, /Paystack did not return a valid checkout session/);
+  assert.match(script.body, /Minimum deposit is KES 4\.00/);
+  assert.match(script.body, /Paystack did not return a valid secure checkout link/);
+  assert.match(script.body, /name="amount" min="4"/);
 });
 
 test('creator dashboard exposes Visit my site and Log out actions', async () => {

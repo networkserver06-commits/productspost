@@ -18,10 +18,11 @@ const MIN_SECRET_LENGTH = 32;
 function normalizeBaseUrl(value, fallback) { const raw = String(value || fallback).trim(); const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? raw : `https://${raw}`; try { return new URL(withScheme).toString().replace(/\/$/, ''); } catch { return fallback; } }
 const APP_URL = normalizeBaseUrl(process.env.APP_URL || process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL, 'http://localhost:3000');
 const PUBLIC_SITE_BASE_URL = normalizeBaseUrl(process.env.PUBLIC_SITE_BASE_URL || APP_URL, APP_URL);
+const PAYSTACK_CALLBACK_URL = normalizeBaseUrl(process.env.PAYSTACK_CALLBACK_URL || `${PUBLIC_SITE_BASE_URL}/?payment=complete`, `${PUBLIC_SITE_BASE_URL}/?payment=complete`);
 const PAYSTACK_CURRENCY = String(process.env.PAYSTACK_CURRENCY || 'KES').toUpperCase();
 const PAYSTACK_SUPPORTED_CHANNELS = new Set(['card', 'bank', 'apple_pay', 'ussd', 'qr', 'mobile_money', 'bank_transfer', 'eft', 'capitec_pay', 'payattitude']);
 const PAYSTACK_CHANNELS = String(process.env.PAYSTACK_CHANNELS || '').split(',').map(x => x.trim()).filter(x => PAYSTACK_SUPPORTED_CHANNELS.has(x));
-const PAYSTACK_MINIMUM_MINOR = PAYSTACK_CURRENCY === 'KES' ? 300 : 1;
+const PAYSTACK_MINIMUM_MINOR = PAYSTACK_CURRENCY === 'KES' ? 400 : 1;
 const htmlPath = path.join(process.cwd(), 'index.html');
 const upgradeScriptPath = path.join(process.cwd(), 'app-upgrade.js');
 const serviceWorkerPath = path.join(process.cwd(), 'sw.js');
@@ -425,7 +426,7 @@ async function initializePaystackTransaction(user, amountMinor) {
   if (!secret) { const error = new Error('Paystack is not configured'); error.code = 'PAYSTACK_NOT_CONFIGURED'; throw error; }
   // Paystack references allow alphanumeric characters plus -, ., and = only.
   const reference = `LT-${Date.now()}-${crypto.randomBytes(5).toString('hex')}`;
-  const payload = { email: user.email, amount: String(amountMinor), currency: PAYSTACK_CURRENCY, reference, callback_url: `${APP_URL}/?payment=complete`, metadata: JSON.stringify({ userId: String(user._id), username: user.username, purpose: 'wallet_topup' }) };
+  const payload = { email: user.email, amount: String(amountMinor), currency: PAYSTACK_CURRENCY, reference, callback_url: PAYSTACK_CALLBACK_URL, metadata: JSON.stringify({ userId: String(user._id), username: user.username, purpose: 'wallet_topup' }) };
   if (PAYSTACK_CHANNELS.length) payload.channels = PAYSTACK_CHANNELS;
   const response = await fetch('https://api.paystack.co/transaction/initialize', { method: 'POST', headers: { Authorization: `Bearer ${secret}`, 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
   const data = await response.json().catch(() => ({}));
