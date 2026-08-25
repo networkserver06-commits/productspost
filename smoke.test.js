@@ -102,6 +102,15 @@ test('public username sites include customer-facing share actions', async () => 
   assert.match(script.body, /Only posts published by this user appear/);
 });
 
+test('creator dashboard uses a functional admin-style dropdown menu', async () => {
+  const script = await request('/app-upgrade.js');
+  assert.match(script.body, /upgrade-user-select-toggle/);
+  assert.match(script.body, /aria-expanded/);
+  assert.match(script.body, /role="menuitem"/);
+  for (const label of ['Overview', 'Visitor analytics', 'Posts & blogs', 'Wallet & history', 'Paid services', 'Profile & site', 'Security']) assert.ok(script.body.includes(label), `missing dropdown label: ${label}`);
+  assert.match(script.body, /classList\.remove\('open'\)/);
+});
+
 test('shared links receive dynamic social metadata and a generated PNG card', async () => {
   const page = await request('/leetech?shareTitle=My%20new%20post&shareText=Ideas%20for%20better%20days');
   assert.equal(page.status, 200);
