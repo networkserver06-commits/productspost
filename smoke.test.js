@@ -89,6 +89,23 @@ test('automatic refresh and reconnect hooks are wired without private data cachi
   assert.match(shell.body, /A new Lee Tech update is ready/);
 });
 
+test('toast feedback covers automatic updates and major user actions', async () => {
+  const shell = await request('/');
+  const script = await request('/app-upgrade.js');
+  assert.match(shell.body, /id="toast" role="status" aria-live="polite"/);
+  assert.match(shell.body, /Storefront updated automatically/);
+  assert.match(shell.body, /Internet connection restored/);
+  assert.match(shell.body, /A new Lee Tech update is ready/);
+  assert.match(script.body, /Signed in successfully/);
+  assert.match(script.body, /Opening secure Paystack checkout/);
+  assert.match(script.body, /Blog saved successfully/);
+  assert.match(script.body, /Product saved successfully/);
+  assert.match(script.body, /Creator site updated automatically/);
+  assert.match(shell.body, /Dashboard synced automatically/);
+  assert.match(script.body, /Posting price saved/);
+  assert.match(script.body, /notify\(error\.message, 'error'\)/);
+});
+
 test('auth upgrade includes password visibility and verification-code UX', async () => {
   const script = await request('/app-upgrade.js');
   assert.match(script.body, /data-password-toggle/);
