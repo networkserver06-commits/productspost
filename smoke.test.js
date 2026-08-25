@@ -192,6 +192,8 @@ test('Paystack initialization and verification follow the documented payment con
   assert.match(source, /PAYSTACK_CURRENCY === 'KES' \? 400 : 1/);
   assert.match(source, /PAYSTACK_CALLBACK_URL/);
   assert.match(source, /callback_url: PAYSTACK_CALLBACK_URL/);
+  assert.match(source, /AbortSignal\.timeout\(15000\)/);
+  assert.match(source, /PAYSTACK_UNAVAILABLE/);
   assert.match(source, /PAYSTACK_SECRET_KEY \|\| process\.env\.PAYSTACK_WEBHOOK_SECRET/);
   assert.match(source, /x-paystack-signature/);
   assert.match(source, /Payment is \$\{transaction\.status/);
@@ -200,6 +202,8 @@ test('Paystack initialization and verification follow the documented payment con
   assert.match(script.body, /Check status/);
   assert.match(script.body, /Minimum deposit is KES 4\.00/);
   assert.match(script.body, /Paystack did not return a valid secure checkout link/);
+  assert.match(script.body, /upgradeTopupMessage/);
+  assert.match(script.body, /Paystack checkout timed out/);
   assert.match(script.body, /name="amount" min="4"/);
 });
 
