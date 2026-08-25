@@ -138,12 +138,56 @@ test('public username sites include customer-facing share and contact actions', 
   assert.match(script.body, /renderPublicContactLinks/);
   assert.match(script.body, /whatsappGroupLink/);
   assert.match(script.body, /instagramUrl/);
-  assert.match(script.body, /Only posts and blogs published by this creator appear/);
+  assert.match(script.body, /Only blogs and products published by this creator appear/);
   assert.match(script.body, /upgrade-public-nav/);
   assert.match(script.body, /upgrade-public-profile-card/);
   assert.match(script.body, /upgrade-public-contact/);
   assert.match(script.body, /upgrade-public-cta/);
   assert.match(script.body, /upgrade-public-footer/);
+  assert.match(script.body, /renderPublicProductCards/);
+  assert.match(script.body, /upgrade-public-product-grid/);
+  assert.match(script.body, /data-share-product/);
+});
+
+test('creator publishing supports uploads, separated blogs, and typed products', async () => {
+  const server = require('node:fs').readFileSync('server.js', 'utf8');
+  const script = await request('/app-upgrade.js');
+  assert.match(server, /contentType/);
+  assert.match(server, /productType/);
+  assert.match(server, /normalizeImage/);
+  assert.match(server, /normalizePostFields/);
+  assert.match(server, /userSite\(user, posts, products\)/);
+  assert.match(script.body, /upgradePostImageFile/);
+  assert.match(script.body, /compressUserPostImage/);
+  assert.match(script.body, /upgradeProductPostFields/);
+  assert.match(script.body, /upgradeProductStockField/);
+  assert.match(script.body, /renderUserLibrarySections/);
+  assert.match(script.body, /Save product/);
+});
+
+test('Paystack initialization and verification follow the documented payment contract', async () => {
+  const source = require('node:fs').readFileSync('server.js', 'utf8');
+  assert.match(source, /LT-\$\{Date\.now\(\)\}-/);
+  assert.doesNotMatch(source, /LT_\$\{Date\.now\(\)\}_/);
+  assert.match(source, /metadata: JSON\.stringify/);
+  assert.match(source, /amount: String\(amountMinor\)/);
+  assert.match(source, /PAYSTACK_MINIMUM_MINOR/);
+  assert.match(source, /PAYSTACK_SECRET_KEY \|\| process\.env\.PAYSTACK_WEBHOOK_SECRET/);
+  assert.match(source, /x-paystack-signature/);
+  assert.match(source, /Payment is \$\{transaction\.status/);
+  const script = await request('/app-upgrade.js');
+  assert.match(script.body, /data-verify-payment/);
+  assert.match(script.body, /Check status/);
+  assert.match(script.body, /Paystack did not return a valid checkout session/);
+});
+
+test('creator dashboard exposes Visit my site and Log out actions', async () => {
+  const script = await request('/app-upgrade.js');
+  assert.match(script.body, /Visit my site/);
+  assert.match(script.body, /Log out/);
+  assert.match(script.body, /data-user-action="visit-site"/);
+  assert.match(script.body, /data-user-action="logout"/);
+  assert.match(script.body, /logoutUser\(\)/);
 });
 
 test('creator dashboard uses a functional admin-style dropdown menu', async () => {
