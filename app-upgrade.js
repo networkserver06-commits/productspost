@@ -28,7 +28,9 @@
     const style = document.createElement('style');
     if (nonce) style.setAttribute('nonce', nonce);
     style.textContent = `
-      .upgrade-user-button{display:inline-flex;align-items:center;gap:8px}
+      .upgrade-account-actions{display:flex;align-items:center;gap:7px}
+      .upgrade-user-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap}
+      .upgrade-account-actions .upgrade-signin-button{display:inline-flex!important}
       .upgrade-user-button .user-dot{width:8px;height:8px;background:#57c7ae;border-radius:50%;display:inline-block}
       .upgrade-overlay{position:fixed;inset:0;background:#07101bbf;backdrop-filter:blur(8px);z-index:110;display:none;place-items:center;padding:18px;overflow:auto}
       .upgrade-overlay.open{display:grid}
@@ -135,17 +137,28 @@
   }
   function renderUserButton() {
     const actions = document.querySelector('.nav-actions');
-    if (!actions || document.getElementById('upgradeUserButton')) return;
-    const button = document.createElement('button');
-    button.id = 'upgradeUserButton';
-    button.className = 'ghost upgrade-user-button';
-    actions.insertBefore(button, actions.firstChild);
-    button.addEventListener('click', () => userState.user ? openDashboard() : openAuth('signin'));
-    updateUserButton(button);
+    if (!actions || document.getElementById('upgradeAccountActions')) return;
+    const group = document.createElement('div');
+    group.id = 'upgradeAccountActions';
+    group.className = 'upgrade-account-actions';
+    group.innerHTML = '<button id="upgradeSignInButton" class="ghost upgrade-user-button upgrade-signin-button" type="button">Sign in</button><button id="upgradeRegisterButton" class="primary upgrade-user-button upgrade-register-button" type="button">Create account</button>';
+    actions.insertBefore(group, actions.firstChild);
+    document.getElementById('upgradeSignInButton').addEventListener('click', () => userState.user ? openDashboard() : openAuth('signin'));
+    document.getElementById('upgradeRegisterButton').addEventListener('click', () => userState.user ? openDashboard() : openAuth('register'));
+    updateUserButton();
   }
-  function updateUserButton(button = document.getElementById('upgradeUserButton')) {
-    if (!button) return;
-    button.innerHTML = userState.user ? '<span class="user-dot"></span> My dashboard' : 'Create account';
+  function updateUserButton() {
+    const signIn = document.getElementById('upgradeSignInButton');
+    const register = document.getElementById('upgradeRegisterButton');
+    if (!signIn || !register) return;
+    if (userState.user) {
+      signIn.innerHTML = '<span class="user-dot"></span> My dashboard';
+      register.style.display = 'none';
+    } else {
+      signIn.textContent = 'Sign in';
+      register.textContent = 'Create account';
+      register.style.display = 'inline-flex';
+    }
   }
   async function ensureWallet() {
     if (!userState.user) return;

@@ -55,4 +55,5 @@ test('client-side routes receive the nonce-bearing storefront shell', async () =
   assert.equal(response.status, 200);
   assert.match(response.body, /Content-Security-Policy|Lee Tech/);
   assert.doesNotMatch(response.body, /__CSP_NONCE__/);
+  assert.match(response.body, /\.upgrade-overlay\{position:fixed/);
 });
