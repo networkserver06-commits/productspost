@@ -81,6 +81,27 @@ test('server contains branded automated email templates', () => {
   assert.match(source, /Verification code/);
 });
 
+test('creator dashboard capabilities are wired to owner-scoped routes', async () => {
+  const source = require('node:fs').readFileSync('server.js', 'utf8');
+  assert.match(source, /api\/me\/analytics/);
+  assert.match(source, /ownerId: req\.user\._id/);
+  assert.match(source, /api\/me\/security/);
+  assert.match(source, /purchases/);
+  const script = await request('/app-upgrade.js');
+  assert.match(script.body, /Visitor analytics/);
+  assert.match(script.body, /Wallet & history/);
+  assert.match(script.body, /Paid services/);
+  assert.match(script.body, /Profile & site/);
+  assert.match(script.body, /Posts & blogs/);
+});
+
+test('public username sites include customer-facing share actions', async () => {
+  const script = await request('/app-upgrade.js');
+  assert.match(script.body, /data-share-site/);
+  assert.match(script.body, /data-share-post/);
+  assert.match(script.body, /Only posts published by this user appear/);
+});
+
 test('shared links receive dynamic social metadata and a generated PNG card', async () => {
   const page = await request('/leetech?shareTitle=My%20new%20post&shareText=Ideas%20for%20better%20days');
   assert.equal(page.status, 200);
