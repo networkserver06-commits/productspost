@@ -5,6 +5,56 @@
   const isPublicUserSite = !!rootPath && !rootPath.startsWith('api') && rootPath !== 'app-upgrade.js';
   const userState = { user: null, wallet: null, mode: 'signin', post: null, pendingUsername: '' };
   const upgrade = {};
+  let upgradeBuildVersion = '';
+
+  function setConnectionBanner(online = true) {
+    const banner = document.getElementById('connectionBanner');
+    const text = document.getElementById('connectionBannerText');
+    const retry = document.getElementById('connectionRetryButton');
+    const update = document.getElementById('connectionUpdateButton');
+    if (!banner) return;
+    if (online) { if (banner.classList.contains('update')) return; banner.classList.remove('open'); return; }
+    banner.classList.remove('update');
+    if (text) text.textContent = 'No internet connection. Lee Tech will reconnect automatically when you are back online.';
+    if (retry) retry.hidden = false;
+    if (update) update.hidden = true;
+    banner.classList.add('open');
+  }
+  function showAppUpdate() {
+    const banner = document.getElementById('connectionBanner');
+    const text = document.getElementById('connectionBannerText');
+    const retry = document.getElementById('connectionRetryButton');
+    const update = document.getElementById('connectionUpdateButton');
+    if (!banner || !navigator.onLine) return;
+    if (text) text.textContent = 'A new Lee Tech update is ready. Refresh now to see the latest improvements.';
+    if (retry) retry.hidden = true;
+    if (update) update.hidden = false;
+    banner.classList.add('update', 'open');
+  }
+  async function checkForAppUpdate() {
+    if (!navigator.onLine) return;
+    try {
+      const response = await fetch('/api/version?ts=' + Date.now(), { cache: 'no-store', credentials: 'same-origin' });
+      if (!response.ok) return;
+      const data = await response.json();
+      const version = String(data.version || '');
+      if (!version) return;
+      if (!upgradeBuildVersion) { upgradeBuildVersion = version; return; }
+      if (version !== upgradeBuildVersion) showAppUpdate();
+    } catch { /* Connection state handles temporary failures. */ }
+  }
+  function installSharedConnectionRecovery() {
+    if (!window.setConnectionBanner) {
+      window.setConnectionBanner = setConnectionBanner;
+      window.showUpdateAvailable = showAppUpdate;
+      window.checkForAppUpdate = checkForAppUpdate;
+      window.addEventListener('offline', () => setConnectionBanner(false));
+      window.addEventListener('online', () => { setConnectionBanner(true); window.refreshPublicSite?.(); checkForAppUpdate(); });
+      document.getElementById('connectionRetryButton')?.addEventListener('click', () => { if (!navigator.onLine) return setConnectionBanner(false); setConnectionBanner(true); window.refreshPublicSite?.(); checkForAppUpdate(); });
+      document.getElementById('connectionUpdateButton')?.addEventListener('click', () => window.location.reload());
+    }
+    if (!navigator.onLine) setConnectionBanner(false);
+  }
 
   function escapeHtml(value = '') {
     return String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
@@ -14,7 +64,7 @@
   }
   async function request(url, options = {}) {
     const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
-    const response = await fetch(url, { ...options, headers, credentials: 'include' });
+    const response = await fetch(url, { ...options, headers, credentials: 'include', cache: options.cache || 'no-store' });
     const data = response.status === 204 ? null : await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data?.error || 'Something went wrong');
     return data;
@@ -407,9 +457,15 @@
     if (!links.length) return '';
     return `<section class="upgrade-public-contact"><div class="upgrade-public-contact-head"><div><div class="upgrade-public-eyebrow">Connect with the creator</div><h2>Let’s stay in touch.</h2><p>Choose a channel to reach ${escapeHtml(userState.user?.displayName || 'this creator')}.</p></div><span class="upgrade-public-contact-count">${links.length} contact option${links.length === 1 ? '' : 's'}</span></div><div class="upgrade-public-contact-grid">${links.map(link => `<a class="upgrade-public-contact-link" href="${escapeHtml(link.href)}" target="_blank" rel="noopener noreferrer"><span class="upgrade-public-contact-icon">${escapeHtml(link.icon)}</span><span><strong>${escapeHtml(link.label)}</strong><small>${escapeHtml(link.detail)}</small></span><b>↗</b></a>`).join('')}</div></section>`;
   }
-  async function renderPublicUserSite() {
+  let publicSiteSnapshot = '';
+  let publicRefreshTimer = null;
+  async function renderPublicUserSite(silent = false) {
     try {
-      const data = await request(`/api/public/sites/${encodeURIComponent(rootPath)}`);
+      const suffix = silent ? `?ts=${Date.now()}` : '';
+      const data = await request(`/api/public/sites/${encodeURIComponent(rootPath)}${suffix}`);
+      const snapshot = JSON.stringify({ user: data.user, posts: data.posts });
+      if (silent && snapshot === publicSiteSnapshot) { window.setConnectionBanner?.(true); return; }
+      publicSiteSnapshot = snapshot;
       userState.user = data.user;
       document.querySelector('header')?.remove();
       document.querySelector('main')?.remove();
@@ -420,13 +476,20 @@
       document.body.appendChild(site);
       const grid = site.querySelector('#upgradePublicPostGrid');
       const postCount = site.querySelector('[data-post-count]'); if (postCount) postCount.textContent = String(data.posts.length);
-      grid.innerHTML = data.posts.length ? data.posts.map((post, index) => `<article class="upgrade-post"><div class="upgrade-post-topline"><span>0${index + 1}</span><time>${new Date(post.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</time></div>${post.image ? `<img src="${escapeHtml(post.image)}" alt="${escapeHtml(post.title)}" class="upgrade-post-image">` : ''}<div class="upgrade-post-kicker">${escapeHtml(post.author || data.user.displayName)} · Lee Tech journal</div><h2>${escapeHtml(post.title)}</h2><p>${escapeHtml(post.content)}</p><div class="upgrade-post-bottom"><span>Published on @${escapeHtml(data.user.username)}</span><button class="ghost upgrade-post-share" type="button" data-share-post data-share-title="${escapeHtml(post.title)}" data-share-text="${escapeHtml(post.excerpt || post.content.slice(0,170))}">Share post ↗</button></div></article>`).join('') : '<div class="upgrade-public-empty"><div class="upgrade-public-empty-icon">✦</div><h3>The first story is on its way.</h3><p>Published posts and blogs from this creator will appear here for their audience.</p><a class="upgrade-public-text-link" href="/">Explore Lee Tech →</a></div>';
+      grid.innerHTML = data.posts.length ? data.posts.map((post, index) => `<article class="upgrade-post"><div class="upgrade-post-topline"><span>0${index + 1}</span><time>${new Date(post.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</time></div>${post.image ? `<img src="${escapeHtml(post.image)}" alt="${escapeHtml(post.title)}" class="upgrade-post-image" loading="lazy" decoding="async">` : ''}<div class="upgrade-post-kicker">${escapeHtml(post.author || data.user.displayName)} · Lee Tech journal</div><h2>${escapeHtml(post.title)}</h2><p>${escapeHtml(post.content)}</p><div class="upgrade-post-bottom"><span>Published on @${escapeHtml(data.user.username)}</span><button class="ghost upgrade-post-share" type="button" data-share-post data-share-title="${escapeHtml(post.title)}" data-share-text="${escapeHtml(post.excerpt || post.content.slice(0,170))}">Share post ↗</button></div></article>`).join('') : '<div class="upgrade-public-empty"><div class="upgrade-public-empty-icon">✦</div><h3>The first story is on its way.</h3><p>Published posts and blogs from this creator will appear here for their audience.</p><a class="upgrade-public-text-link" href="/">Explore Lee Tech →</a></div>';
       site.querySelectorAll('[data-share-site]').forEach(button => button.addEventListener('click', () => window.shareItem?.(`${data.user.displayName} — Lee Tech creator site`, data.user.bio || `Published posts from @${data.user.username}.`, '', `${location.origin}${location.pathname}`)));
       site.querySelectorAll('[data-share-post]').forEach(button => button.addEventListener('click', () => window.shareItem?.(button.dataset.shareTitle, button.dataset.shareText, '', `${location.origin}${location.pathname}`)));
     } catch {
-      document.body.innerHTML = `<div class="upgrade-site-body"><div class="eyebrow">Lee Tech</div><h1>Site not found.</h1><p class="upgrade-muted">This username site does not exist, is not verified, or has no public access yet.</p><a class="primary" href="/">Return to Lee Tech</a></div>`;
+      if (!navigator.onLine) { window.setConnectionBanner?.(false); if (!silent && !document.getElementById('upgradePublicUserSite')) document.body.innerHTML = `<div class="upgrade-site-body"><div class="eyebrow">Lee Tech</div><h1>Waiting for connection.</h1><p class="upgrade-muted">This creator site will load automatically when the internet returns.</p><a class="primary" href="/">Return to Lee Tech</a></div>`; return; }
+      if (!silent) document.body.innerHTML = `<div class="upgrade-site-body"><div class="eyebrow">Lee Tech</div><h1>Site not found.</h1><p class="upgrade-muted">This username site does not exist, is not verified, or has no public access yet.</p><a class="primary" href="/">Return to Lee Tech</a></div>`;
     }
   }
+  function startPublicAutoRefresh() {
+    clearInterval(publicRefreshTimer);
+    publicRefreshTimer = setInterval(() => { if (!document.hidden && navigator.onLine) { renderPublicUserSite(true); checkForAppUpdate(); } }, 60000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden && navigator.onLine) { renderPublicUserSite(true); checkForAppUpdate(); } });
+  }
+  window.refreshPublicSite = () => renderPublicUserSite(true);
 
   function adminRequest(url, options = {}) {
     const token = localStorage.getItem('leeToken');
@@ -491,10 +554,19 @@
     try { await adminRequest('/api/admin/services', { method: 'POST', body: JSON.stringify(values) }); event.currentTarget.reset(); notify('Service added.', 'success'); await loadAdminPricing(); } catch (error) { notify(error.message, 'error'); }
   }
 
+  async function registerOfflineWorker() {
+    if (!('serviceWorker' in navigator)) return;
+    try {
+      const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+      registration.addEventListener('updatefound', () => { const worker = registration.installing; worker?.addEventListener('statechange', () => { if (worker.state === 'installed' && navigator.serviceWorker.controller) window.showUpdateAvailable?.(); }); });
+    } catch { /* Offline fallback still works through the connection banner. */ }
+  }
   async function init() {
     addStyles();
     bindPasswordToggles(document);
-    if (isPublicUserSite) { await renderPublicUserSite(); return; }
+    installSharedConnectionRecovery();
+    registerOfflineWorker();
+    if (isPublicUserSite) { await renderPublicUserSite(); startPublicAutoRefresh(); checkForAppUpdate(); return; }
     makeOverlay();
     renderUserButton();
     injectAdminNavigation();

@@ -44,6 +44,25 @@ test('upgrade script is served from the same origin', async () => {
   assert.match(response.body, /renderPublicUserSite/);
 });
 
+test('performance and resilience assets are delivered with fresh cache semantics', async () => {
+  const version = await request('/api/version');
+  assert.equal(version.status, 200);
+  assert.match(version.headers['cache-control'], /no-store/);
+  assert.ok(JSON.parse(version.body).version);
+  const worker = await request('/sw.js');
+  assert.equal(worker.status, 200);
+  assert.match(worker.headers['content-type'], /javascript/);
+  assert.match(worker.body, /offline\.html/);
+  const offline = await request('/offline.html');
+  assert.equal(offline.status, 200);
+  assert.match(offline.headers['cache-control'], /no-store/);
+  assert.match(offline.body, /You’re offline for now/);
+  const shell = await request('/');
+  assert.match(shell.headers['cache-control'], /no-store/);
+  assert.match(shell.body, /connectionBanner/);
+  assert.match(shell.body, /app-upgrade\.js/);
+});
+
 test('unknown API routes return JSON 404 instead of the storefront HTML', async () => {
   const response = await request('/api/does-not-exist');
   assert.equal(response.status, 404);
@@ -56,6 +75,18 @@ test('client-side routes receive the nonce-bearing storefront shell', async () =
   assert.match(response.body, /Content-Security-Policy|Lee Tech/);
   assert.doesNotMatch(response.body, /__CSP_NONCE__/);
   assert.match(response.body, /\.upgrade-overlay\{position:fixed/);
+});
+
+test('automatic refresh and reconnect hooks are wired without private data caching', async () => {
+  const shell = await request('/');
+  const script = await request('/app-upgrade.js');
+  assert.match(shell.body, /setInterval\(\(\)=>\{if\(!document\.hidden&&navigator\.onLine\)/);
+  assert.match(shell.body, /checkForAppUpdate\(\)/);
+  assert.match(script.body, /cache: options\.cache \|\| 'no-store'/);
+  assert.match(script.body, /startPublicAutoRefresh/);
+  assert.match(script.body, /window\.refreshPublicSite/);
+  assert.match(script.body, /navigator\.serviceWorker\.register\('\/sw\.js'/);
+  assert.match(shell.body, /A new Lee Tech update is ready/);
 });
 
 test('auth upgrade includes password visibility and verification-code UX', async () => {

@@ -9,6 +9,7 @@ const fs = require('fs');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const morgan = require('morgan');
+const compression = require('compression');
 const crypto = require('crypto');
 const sharp = require('sharp');
 
@@ -21,8 +22,14 @@ const PAYSTACK_CURRENCY = String(process.env.PAYSTACK_CURRENCY || 'KES').toUpper
 const PAYSTACK_CHANNELS = String(process.env.PAYSTACK_CHANNELS || '').split(',').map(x => x.trim()).filter(Boolean);
 const htmlPath = path.join(process.cwd(), 'index.html');
 const upgradeScriptPath = path.join(process.cwd(), 'app-upgrade.js');
+const serviceWorkerPath = path.join(process.cwd(), 'sw.js');
+const offlinePagePath = path.join(process.cwd(), 'offline.html');
 const htmlTemplate = fs.readFileSync(htmlPath, 'utf8');
 const upgradeScript = fs.existsSync(upgradeScriptPath) ? fs.readFileSync(upgradeScriptPath, 'utf8') : '';
+const serviceWorkerScript = fs.existsSync(serviceWorkerPath) ? fs.readFileSync(serviceWorkerPath, 'utf8') : '';
+const offlinePage = fs.existsSync(offlinePagePath) ? fs.readFileSync(offlinePagePath, 'utf8') : '<!doctype html><title>Offline</title><p>You are offline.</p>';
+const packageVersion = (() => { try { return require(path.join(process.cwd(), 'package.json')).version; } catch { return 'dev'; } })();
+const BUILD_VERSION = String(process.env.VERCEL_GIT_COMMIT_SHA || process.env.VERCEL_DEPLOYMENT_ID || process.env.BUILD_VERSION || packageVersion || 'dev');
 const hashDirective = value => `'sha256-${crypto.createHash('sha256').update(value).digest('base64')}'`;
 const inlineHandlerHashes = [...htmlTemplate.matchAll(/\bon[a-z]+\s*=\s*["']([^"']*)["']/gi)].map(match => hashDirective(match[1]));
 const inlineStyleHashes = [...htmlTemplate.matchAll(/\bstyle\s*=\s*["']([^"']*)["']/gi)].map(match => hashDirective(match[1]));
@@ -86,6 +93,7 @@ app.use((req, res, next) => {
   next();
 });
 app.use(helmet({ contentSecurityPolicy: false }));
+app.use(compression({ threshold: 1024 }));
 app.use(cors({
   origin(origin, callback) {
     if (!origin || corsOrigins.has(origin)) return callback(null, true);
@@ -95,7 +103,7 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '15mb', verify(req, res, buffer) { req.rawBody = Buffer.from(buffer); } }));
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
-app.use(morgan('dev'));
+if (!isProduction) app.use(morgan('dev'));
 app.use('/api/', rateLimit({ windowMs: 15 * 60 * 1000, max: 300, validate: { xForwardedForHeader: false } }));
 const adminLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 120, standardHeaders: 'draft-7', legacyHeaders: false, message: { error: 'Admin request limit reached. Please try again later.' }, validate: { xForwardedForHeader: false } });
 const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 8, skipSuccessfulRequests: true, standardHeaders: 'draft-7', legacyHeaders: false, message: { error: 'Too many sign-in attempts. Please wait 15 minutes.' }, validate: { xForwardedForHeader: false } });
@@ -493,11 +501,14 @@ app.post('/api/admin/posts', (req, res) => crud(Post, req, res, 'create'));
 app.put('/api/admin/posts/:id', (req, res) => crud(Post, req, res, 'update'));
 app.delete('/api/admin/posts/:id', (req, res) => crud(Post, req, res, 'delete'));
 
-app.get('/app-upgrade.js', (req, res) => { res.type('application/javascript').set('Cache-Control', 'no-store').send(upgradeScript); });
+app.get('/api/version', (req, res) => res.set('Cache-Control', 'no-store, must-revalidate').json({ version: BUILD_VERSION }));
+app.get('/app-upgrade.js', (req, res) => { res.type('application/javascript').set('Cache-Control', 'no-store, must-revalidate').send(upgradeScript); });
+app.get('/sw.js', (req, res) => { res.type('application/javascript').set('Cache-Control', 'no-store, must-revalidate').send(serviceWorkerScript); });
+app.get('/offline.html', (req, res) => { res.type('html').set('Cache-Control', 'no-store, must-revalidate').send(offlinePage.replaceAll('__CSP_NONCE__', res.locals.cspNonce)); });
 app.get('/share-card.png', async (req, res) => { try { const title = clean(req.query.title || 'Lee Tech', 90); const subtitle = clean(req.query.subtitle || 'Technology with intention.', 170); const kicker = clean(req.query.kicker || 'LEE TECH COMMUNITY', 42); const image = await renderShareCard({ title, subtitle, kicker }); res.type('png').set('Cache-Control', 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400').send(image); } catch (error) { console.error('Share-card generation error:', error.message); res.status(500).end(); } });
 app.use('/api', (req, res) => res.status(404).json({ error: 'API route not found' }));
 app.use((err, req, res, next) => { if (err?.message === 'CORS origin is not allowed') return res.status(403).json({ error: 'CORS origin is not allowed' }); console.error(err); return res.status(500).json({ error: 'Server error' }); });
-app.get('*', (req, res) => res.type('html').send(shareMetadata(req).replaceAll('__CSP_NONCE__', res.locals.cspNonce)));
+app.get('*', (req, res) => res.type('html').set('Cache-Control', 'no-store, must-revalidate').send(shareMetadata(req).replaceAll('__CSP_NONCE__', res.locals.cspNonce)));
 
 if (!isProduction) app.listen(process.env.PORT || 3000, () => console.log(`Lee Tech running on http://localhost:${process.env.PORT || 3000}`));
 module.exports = app;

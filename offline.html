@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lee Tech — You are offline</title>
+<style nonce="__CSP_NONCE__">
+:root{color-scheme:light;--navy:#0e1b32;--blue:#1f5eff;--mint:#bdebdc;--cream:#f7f8fb;--muted:#6d7b92}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at 85% 10%,#dce8ff 0,transparent 34%),var(--cream);color:var(--navy);font:15px/1.6 'DM Sans',system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;display:grid;place-items:center;padding:24px}.offline-card{width:min(620px,100%);background:#fff;border:1px solid #e5eaf1;border-radius:28px;padding:clamp(28px,6vw,58px);box-shadow:0 25px 70px #19335a14;text-align:center}.mark{display:grid;place-items:center;width:58px;height:58px;border-radius:18px;background:var(--navy);color:var(--mint);font:800 25px Manrope,system-ui,sans-serif;margin:0 auto 25px}.eyebrow{color:var(--blue);font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}.signal{display:inline-flex;align-items:center;gap:8px;margin:0 0 16px}.signal i{width:8px;height:8px;border-radius:50%;background:#e6a84c;box-shadow:0 0 0 5px #e6a84c20}.offline-card h1{font:800 clamp(34px,7vw,58px)/1.02 Manrope,system-ui,sans-serif;letter-spacing:-.07em;margin:0 0 16px}.offline-card p{max-width:470px;margin:0 auto 26px;color:var(--muted)}.actions{display:flex;justify-content:center;gap:10px;flex-wrap:wrap}.button{border:1px solid #dce4f1;border-radius:12px;background:#fff;color:var(--navy);padding:12px 16px;font:700 14px inherit;text-decoration:none;cursor:pointer}.button.primary{border-color:var(--blue);background:var(--blue);color:#fff;box-shadow:0 12px 24px #1f5eff2a}.hint{margin-top:24px;color:#8b98aa;font-size:12px}@media(max-width:480px){body{padding:14px}.offline-card{padding:30px 20px;border-radius:22px}}
+</style>
+</head>
+<body>
+<main class="offline-card" aria-labelledby="offlineTitle"><div class="mark">L</div><div class="signal"><i aria-hidden="true"></i><span class="eyebrow">Connection paused</span></div><h1 id="offlineTitle">You’re offline for now.</h1><p>Lee Tech needs an internet connection to load the latest storefront, creator sites, and account updates. Check your connection and try again.</p><div class="actions"><button class="button primary" id="offlineRetry" type="button">Try again</button><a class="button" href="/">Return to Lee Tech</a></div><div class="hint" id="offlineHint">We’ll reconnect automatically when the internet returns.</div></main>
+<script nonce="__CSP_NONCE__">document.getElementById('offlineRetry')?.addEventListener('click',()=>location.reload());window.addEventListener('online',()=>location.reload());</script>
+</body>
+</html>
