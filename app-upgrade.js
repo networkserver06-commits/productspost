@@ -438,12 +438,15 @@
     } catch (error) { if (message) message.textContent = error.message; notify(error.message, 'error'); }
   }
   async function logoutUser() {
+    const siteUrl = String(userState.user?.siteUrl || '').trim();
     await request('/api/auth/user/logout', { method: 'POST' }).catch(() => {});
     userState.user = null;
     userState.wallet = null;
     document.getElementById('upgradeUserOverlay')?.classList.remove('open');
     updateUserButton();
     notify('Signed out successfully.', 'success');
+    const destination = /^https?:\/\//i.test(siteUrl) ? siteUrl : '/';
+    window.setTimeout(() => window.location.assign(destination), 120);
   }
   async function handleVerificationCallback() {
     const params = new URLSearchParams(window.location.search);

@@ -220,6 +220,9 @@ test('creator dashboard exposes Visit my site and Log out actions', async () => 
   assert.match(script.body, /data-user-action="visit-site"/);
   assert.match(script.body, /data-user-action="logout"/);
   assert.match(script.body, /logoutUser\(\)/);
+  assert.match(script.body, /const siteUrl = String\(userState\.user\?\.siteUrl/);
+  assert.match(script.body, /userState\.user = null/);
+  assert.match(script.body, /window\.location\.assign\(destination\)/);
 });
 
 test('creator dashboard uses a functional admin-style dropdown menu', async () => {
