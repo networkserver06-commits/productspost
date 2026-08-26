@@ -262,6 +262,9 @@ test('admin control center exposes working quick actions and management views', 
   assert.match(shell.body, /data-view="users"/);
   assert.match(shell.body, /data-view="finance"/);
   assert.match(shell.body, /data-view="pricing"/);
+  assert.doesNotMatch(shell.body, /<span>Messages<\/span>/);
+  assert.match(script.body, /view-users.*view-finance.*view-pricing/);
+  assert.match(script.body, /if \(document\.getElementById\('view-users'\)/);
   assert.match(shell.body, /id==='users'\)await loadAdminUsers/);
   assert.match(shell.body, /id==='finance'\)await loadAdminFinance/);
   assert.match(shell.body, /id==='pricing'\)await Promise\.all/);

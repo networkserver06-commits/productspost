@@ -561,6 +561,7 @@
   function injectAdminNavigation() {
     const nav = document.querySelector('.admin-nav-secondary');
     if (!nav || document.getElementById('upgradeAdminUsersButton')) return;
+    if (document.getElementById('view-users') && document.getElementById('view-finance') && document.getElementById('view-pricing')) return;
     nav.insertAdjacentHTML('afterbegin', '<button id="upgradeAdminUsersButton" data-upgrade-admin="users"><span class="nav-icon">♙</span><span>Users</span></button><button data-upgrade-admin="finance"><span class="nav-icon">¤</span><span>Funds & payments</span></button><button data-upgrade-admin="pricing"><span class="nav-icon">◈</span><span>Pricing & services</span></button>');
     nav.querySelectorAll('[data-upgrade-admin]').forEach(button => button.addEventListener('click', () => up_showAdmin(button.dataset.upgradeAdmin)));
     const main = document.querySelector('.admin-main');
