@@ -41,7 +41,16 @@ test('upgrade script is served from the same origin', async () => {
   const response = await request('/app-upgrade.js');
   assert.equal(response.status, 200);
   assert.match(response.headers['content-type'], /javascript/);
-  assert.match(response.body, /renderPublicUserSite/);
+  assert.match(response.body, /function openDashboard/);
+});
+
+test('public navigation hides admin portal while preserving direct admin access', async () => {
+  const shell = await request('/');
+  assert.equal(shell.status, 200);
+  assert.doesNotMatch(shell.body, /id="adminBtn"/);
+  assert.match(shell.body, /id="admin"/);
+  assert.match(shell.body, /openAdmin\(\)/);
+  assert.match(shell.body, /get\('admin'\)==='1'/);
 });
 
 test('performance and resilience assets are delivered with fresh cache semantics', async () => {
