@@ -209,6 +209,11 @@ test('creator dashboard capabilities are wired to owner-scoped routes', async ()
   assert.match(script.body, /Paid services/);
   assert.match(script.body, /Profile & site/);
   assert.match(script.body, /Posts & blogs/);
+  assert.match(script.body, /upgrade-dashboard-menu-anchor/);
+  assert.match(script.body, /upgrade-user-menu\" id=\"upgradeUserMenu\" role=\"menu/);
+  assert.match(script.body, /aria-haspopup=\"menu\"/);
+  assert.match(script.body, /upgrade-dashboard-side-footer\{display:none\}/);
+  assert.equal((script.body.match(/class=\"upgrade-user-menu\"/g) || []).length, 1);
 });
 
 test('public username sites include customer-facing share and contact actions', async () => {
