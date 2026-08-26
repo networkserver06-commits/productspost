@@ -166,6 +166,7 @@ const userSchema = new mongoose.Schema({
   bio: { type: String, default: '', trim: true, maxlength: 600 },
   contact: {
     whatsappNumber: { type: String, default: '', trim: true, maxlength: 40 },
+    phoneNumber: { type: String, default: '', trim: true, maxlength: 40 },
     whatsappGroupLink: { type: String, default: '', trim: true, maxlength: 500 },
     instagramUrl: { type: String, default: '', trim: true, maxlength: 500 },
     facebookUrl: { type: String, default: '', trim: true, maxlength: 500 },
@@ -264,16 +265,19 @@ function normalizeContactUrl(value, label) {
 function normalizeContactLinks(input = {}) {
   const raw = input && typeof input === 'object' ? input : {};
   const whatsappNumber = clean(raw.whatsappNumber, 40);
-  const digits = whatsappNumber.replace(/\D/g, '');
-  if (whatsappNumber && (digits.length < 7 || digits.length > 15)) throw new Error('WhatsApp number must include 7–15 digits, preferably with a country code');
-  const contact = { whatsappNumber };
+  const whatsappDigits = whatsappNumber.replace(/\D/g, '');
+  if (whatsappNumber && (whatsappDigits.length < 7 || whatsappDigits.length > 15)) throw new Error('WhatsApp number must include 7–15 digits, preferably with a country code');
+  const phoneNumber = clean(raw.phoneNumber, 40);
+  const phoneDigits = phoneNumber.replace(/\D/g, '');
+  if (phoneNumber && (phoneDigits.length < 7 || phoneDigits.length > 15)) throw new Error('Phone number must include 7–15 digits, preferably with a country code');
+  const contact = { whatsappNumber, phoneNumber };
   const labels = { whatsappGroupLink: 'WhatsApp group link', instagramUrl: 'Instagram link', facebookUrl: 'Facebook link', xUrl: 'X link', linkedinUrl: 'LinkedIn link', tiktokUrl: 'TikTok link', youtubeUrl: 'YouTube link', telegramUrl: 'Telegram link', websiteUrl: 'Website link' };
   CONTACT_URL_FIELDS.forEach(field => { contact[field] = normalizeContactUrl(raw[field], labels[field]); });
   return contact;
 }
 function contactLinksForView(value = {}) {
   const raw = value && typeof value === 'object' ? value : {};
-  const result = { whatsappNumber: clean(raw.whatsappNumber, 40) };
+  const result = { whatsappNumber: clean(raw.whatsappNumber, 40), phoneNumber: clean(raw.phoneNumber, 40) };
   CONTACT_URL_FIELDS.forEach(field => { try { result[field] = normalizeContactUrl(raw[field], field); } catch { result[field] = ''; } });
   return result;
 }
