@@ -254,6 +254,9 @@ test('admin control center exposes working quick actions and management views', 
   assert.match(shell.body, /data-view="users"/);
   assert.match(shell.body, /data-view="finance"/);
   assert.match(shell.body, /data-view="pricing"/);
+  assert.match(shell.body, /id==='users'\)await loadAdminUsers/);
+  assert.match(shell.body, /id==='finance'\)await loadAdminFinance/);
+  assert.match(shell.body, /id==='pricing'\)await Promise\.all/);
 });
 
 test('shared links receive dynamic social metadata and a generated PNG card', async () => {
