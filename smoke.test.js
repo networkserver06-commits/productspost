@@ -373,6 +373,15 @@ test('admin control center exposes working quick actions and management views', 
   assert.match(shell.body, /id==='pricing'\)await Promise\.all/);
 });
 
+test('admin journal listing matches its owner-scoped edit and delete handlers', () => {
+  const source = require('node:fs').readFileSync('server.js', 'utf8');
+  assert.match(source, /const isPostModel = model === Post/);
+  assert.match(source, /const filter = isPostModel \? \{ ownerId: null \} : \{\}/);
+  assert.match(source, /app\.get\('\/api\/admin\/posts', \(req, res\) => crud\(Post, req, res, 'list'\)\)/);
+  assert.match(source, /findOneAndUpdate\(isProduct \? \{ _id: req\.params\.id \} : \{ _id: req\.params\.id, ownerId: null \}/);
+  assert.match(source, /findOneAndDelete\(isProduct \? \{ _id: req\.params\.id \} : \{ _id: req\.params\.id, ownerId: null \}/);
+});
+
 test('homepage clearly explains the Lee Tech ecosystem and value proposition', async () => {
   const page = await request('/');
   assert.equal(page.status, 200);
@@ -409,4 +418,27 @@ test('shared links receive dynamic metadata and the Lee Tech homepage PNG visual
   const legacyCard = await request('/share-card.png?title=My%20new%20post&subtitle=Ideas%20for%20better%20days');
   assert.equal(legacyCard.status, 200);
   assert.match(legacyCard.headers['content-type'], /image\/png/);
+});
+
+test('shared product links use the product image with a homepage fallback', async () => {
+  const productId = '507f1f77bcf86cd799439011';
+  const page = await request(`/leetech?shareTitle=Product%20launch&shareText=See%20the%20product&shareProduct=${productId}`);
+  assert.equal(page.status, 200);
+  assert.match(page.body, new RegExp(`/share-product-image\\.png\\?product=${productId}`));
+  assert.doesNotMatch(page.body, /og:image[^>]+homepage-share-image\.png/);
+  const fallbackPage = await request('/leetech?shareTitle=Product%20launch&shareProduct=not-an-object-id');
+  assert.equal(fallbackPage.status, 200);
+  assert.match(fallbackPage.body, /homepage-share-image\.png/);
+  const invalidImage = await request('/share-product-image.png?product=not-an-object-id');
+  assert.equal(invalidImage.status, 400);
+  const script = await request('/app-upgrade.js');
+  assert.match(script.body, /data-share-product-id/);
+  const shell = await request('/');
+  assert.match(shell.body, /share-product-image\.png/);
+  assert.match(shell.body, /shareProduct/);
+  assert.match(shell.body, /Product image/);
+  const server = require('fs').readFileSync('server.js', 'utf8');
+  assert.match(server, /contentType: 'product', published: true/);
+  assert.match(server, /data:image/);
+  assert.match(server, /external\.protocol === 'https:/);
 });
