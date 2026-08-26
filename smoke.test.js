@@ -14,17 +14,21 @@ process.env.PUBLIC_SITE_BASE_URL = 'https://post.leetec.online';
 
 const app = require('./server');
 
-function request(path) {
+function request(path, options = {}) {
   return new Promise((resolve, reject) => {
     const server = http.createServer(app);
     server.listen(0, '127.0.0.1', () => {
       const port = server.address().port;
-      http.get({ host: '127.0.0.1', port, path }, response => {
-        let body = '';
+      const body = options.body ? JSON.stringify(options.body) : null;
+      const req = http.request({ host: '127.0.0.1', port, path, method: options.method || 'GET', headers: { ...(body ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) } : {}) } }, response => {
+        let responseBody = '';
         response.setEncoding('utf8');
-        response.on('data', chunk => { body += chunk; });
-        response.on('end', () => server.close(() => resolve({ status: response.statusCode, headers: response.headers, body })));
-      }).on('error', error => server.close(() => reject(error)));
+        response.on('data', chunk => { responseBody += chunk; });
+        response.on('end', () => server.close(() => resolve({ status: response.statusCode, headers: response.headers, body: responseBody })));
+      });
+      req.on('error', error => server.close(() => reject(error)));
+      if (body) req.write(body);
+      req.end();
     });
   });
 }
@@ -136,6 +140,52 @@ test('server contains branded automated email templates', () => {
   assert.match(source, /sendAccountUpdateEmail/);
   assert.match(source, /reply/);
   assert.match(source, /Verification code/);
+});
+
+test('auth and automated email routes have dedicated abuse limits', () => {
+  const source = require('node:fs').readFileSync('server.js', 'utf8');
+  assert.match(source, /const signupLimiter = rateLimit/);
+  assert.match(source, /const emailLimiter = rateLimit/);
+  assert.match(source, /max: 5/);
+  assert.match(source, /app\.post\('\/api\/auth\/user\/register', signupLimiter, emailLimiter, requireDatabase/);
+  assert.match(source, /app\.post\('\/api\/auth\/user\/login', loginLimiter, requireDatabase/);
+  assert.match(source, /app\.post\('\/api\/auth\/user\/forgot-password', loginLimiter, emailLimiter, requireDatabase/);
+  assert.match(source, /app\.post\('\/api\/auth\/user\/resend-verification', loginLimiter, emailLimiter, requireDatabase/);
+  assert.match(source, /app\.post\('\/api\/auth\/user\/change-password', emailLimiter, requireDatabase, userAuth/);
+});
+
+test('invalid admin sign-in attempts are rate limited', async () => {
+  const responses = [];
+  for (let attempt = 0; attempt < 9; attempt += 1) responses.push(await request('/api/auth/login', { method: 'POST', body: { username: 'not-the-admin', password: 'x' } }));
+  assert.equal(responses.slice(0, 8).every(response => response.status === 401), true);
+  assert.equal(responses[8].status, 429);
+  assert.match(responses[8].body, /Too many sign-in attempts/);
+});
+
+test('new accounts receive an auditable KES 10 welcome credit', () => {
+  const source = require('node:fs').readFileSync('server.js', 'utf8');
+  assert.match(source, /WELCOME_CREDIT_MINOR = 1000/);
+  assert.match(source, /type: 'welcome_credit'/);
+  assert.match(source, /reference: `welcome:\$\{user\._id\}`/);
+  assert.match(source, /walletBalanceMinor: WELCOME_CREDIT_MINOR/);
+  assert.match(source, /free KES 10\.00 welcome credit for posting and paid services/);
+  assert.match(source, /Your new creator account includes a free <strong>KES 10\.00 welcome credit<\/strong>/);
+});
+
+test('posting exposes authoritative pricing, secure validation, and wallet receipts', async () => {
+  const source = require('node:fs').readFileSync('server.js', 'utf8');
+  const script = await request('/app-upgrade.js');
+  assert.match(source, /app\.get\('\/api\/me\/posting-cost'/);
+  assert.match(source, /expectedPriceMinor/);
+  assert.match(source, /POST_PRICE_CHANGED/);
+  assert.match(source, /balanceAfterMinor/);
+  assert.match(source, /Physical products require a stock quantity/);
+  assert.match(script.body, /upgradePostCostBox/);
+  assert.match(script.body, /confirm\(review\)/);
+  assert.match(script.body, /expectedPriceMinor: userState\.postingCostMinor/);
+  assert.match(script.body, /balanceAfterMinor/);
+  assert.match(script.body, /Edit product/);
+  assert.match(script.body, /Cancel edit/);
 });
 
 test('creator dashboard capabilities are wired to owner-scoped routes', async () => {
