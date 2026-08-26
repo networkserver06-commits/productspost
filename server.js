@@ -314,9 +314,7 @@ function shareMetadata(req) {
   const pageUrl = `${APP_URL}${req.originalUrl || req.path}`;
   const title = shareTitle ? `${shareTitle} — Lee Tech` : username ? `@${username} — Lee Tech creator site` : 'Lee Tech — Technology with intention';
   const description = shareText || (username ? `Published posts from @${username} on Lee Tech.` : 'Thoughtful products, practical systems, and clear ideas from Lee Tech.');
-  const imageUrl = new URL('/share-card.png', APP_URL);
-  imageUrl.searchParams.set('title', shareTitle || (username ? `@${username}` : 'Lee Tech'));
-  imageUrl.searchParams.set('subtitle', shareText || (username ? 'Published posts from a Lee Tech creator site.' : 'Technology with intention.'));
+  const imageUrl = new URL('/homepage-share-image.png', APP_URL);
   return htmlTemplate.replace('<title>Lee Tech — Technology with intention</title>', `<title>${escapeHtml(title)}</title><meta name="description" content="${escapeHtml(description)}"><meta property="og:type" content="website"><meta property="og:site_name" content="Lee Tech"><meta property="og:title" content="${escapeHtml(title)}"><meta property="og:description" content="${escapeHtml(description)}"><meta property="og:url" content="${escapeHtml(pageUrl)}"><meta property="og:image" content="${escapeHtml(imageUrl.toString())}"><meta property="og:image:type" content="image/png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${escapeHtml(title)}"><meta name="twitter:description" content="${escapeHtml(description)}"><meta name="twitter:image" content="${escapeHtml(imageUrl.toString())}">`);
 }
 
@@ -618,6 +616,7 @@ app.get('/api/version', (req, res) => res.set('Cache-Control', 'no-store, must-r
 app.get('/app-upgrade.js', (req, res) => { res.type('application/javascript').set('Cache-Control', 'no-store, must-revalidate').send(upgradeScript); });
 app.get('/sw.js', (req, res) => { res.type('application/javascript').set('Cache-Control', 'no-store, must-revalidate').send(serviceWorkerScript); });
 app.get('/offline.html', (req, res) => { res.type('html').set('Cache-Control', 'no-store, must-revalidate').send(offlinePage.replaceAll('__CSP_NONCE__', res.locals.cspNonce)); });
+app.get('/homepage-share-image.png', async (req, res) => { try { const image = await renderShareCard({ title: 'Make room for better possibilities.', subtitle: 'A curated technology studio and creator marketplace.', kicker: 'LEE TECH / TECHNOLOGY WITH INTENTION' }); res.type('png').set('Cache-Control', 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800').send(image); } catch (error) { console.error('Homepage share image error:', error.message); res.status(500).end(); } });
 app.get('/share-card.png', async (req, res) => { try { const title = clean(req.query.title || 'Lee Tech', 90); const subtitle = clean(req.query.subtitle || 'Technology with intention.', 170); const kicker = clean(req.query.kicker || 'LEE TECH COMMUNITY', 42); const image = await renderShareCard({ title, subtitle, kicker }); res.type('png').set('Cache-Control', 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400').send(image); } catch (error) { console.error('Share-card generation error:', error.message); res.status(500).end(); } });
 app.use('/api', (req, res) => res.status(404).json({ error: 'API route not found' }));
 app.use((err, req, res, next) => { if (err?.message === 'CORS origin is not allowed') return res.status(403).json({ error: 'CORS origin is not allowed' }); console.error(err); return res.status(500).json({ error: 'Server error' }); });

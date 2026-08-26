@@ -394,15 +394,19 @@ test('share dialog provides an accessible Cancel action and polished controls', 
   assert.match(page.body, /share-list button/);
 });
 
-test('shared links receive dynamic social metadata and a generated PNG card', async () => {
+test('shared links receive dynamic metadata and the Lee Tech homepage PNG visual', async () => {
   const page = await request('/leetech?shareTitle=My%20new%20post&shareText=Ideas%20for%20better%20days');
   assert.equal(page.status, 200);
   assert.match(page.body, /property="og:image"/);
   assert.match(page.body, /twitter:card/);
-  assert.match(page.body, /share-card\.png/);
+  assert.match(page.body, /homepage-share-image\.png/);
+  assert.doesNotMatch(page.body, /og:image[^>]+share-card\.png/);
   assert.match(page.body, /My%20new%20post|My new post/);
-  const card = await request('/share-card.png?title=My%20new%20post&subtitle=Ideas%20for%20better%20days');
-  assert.equal(card.status, 200);
-  assert.match(card.headers['content-type'], /image\/png/);
-  assert.ok(Number(card.headers['content-length'] || 0) > 1000);
+  const homepageImage = await request('/homepage-share-image.png');
+  assert.equal(homepageImage.status, 200);
+  assert.match(homepageImage.headers['content-type'], /image\/png/);
+  assert.ok(Number(homepageImage.headers['content-length'] || 0) > 1000);
+  const legacyCard = await request('/share-card.png?title=My%20new%20post&subtitle=Ideas%20for%20better%20days');
+  assert.equal(legacyCard.status, 200);
+  assert.match(legacyCard.headers['content-type'], /image\/png/);
 });
