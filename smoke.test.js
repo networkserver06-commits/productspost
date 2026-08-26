@@ -270,6 +270,12 @@ test('public username sites include customer-facing share and contact actions', 
   assert.match(script.body, /renderPublicProductCards/);
   assert.match(script.body, /upgrade-public-product-grid/);
   assert.match(script.body, /data-share-product/);
+  assert.match(script.body, /upgrade-product-buy/);
+  assert.match(script.body, /upgrade-product-buy,\.upgrade-product-share\{display:flex;width:100%/);
+  assert.match(script.body, /flex-wrap:wrap;border-top:1px solid #e7ebf0/);
+  assert.match(script.body, /upgrade-public-empty \.upgrade-public-text-link\{color:#1f5eff/);
+  assert.match(script.body, /upgrade-public-cta \.upgrade-public-eyebrow\{color:#20735b/);
+  assert.match(script.body, /box-sizing:border-box/);
 });
 
 test('creator publishing supports uploads, separated blogs, and typed products', async () => {
