@@ -131,6 +131,15 @@ test('auth upgrade includes password visibility and verification-code UX', async
   assert.match(shell.body, /data-password-toggle/);
 });
 
+test('create-account panel advertises the free KES 10 welcome credit', async () => {
+  const response = await request('/app-upgrade.js');
+  assert.equal(response.status, 200);
+  assert.match(response.body, /upgrade-signup-offer/);
+  assert.match(response.body, /Start with a free KES 10\.00 welcome credit/);
+  assert.match(response.body, /Use it for publishing and paid Lee Tech services/);
+  assert.match(response.body, /It is added to your wallet when your account is created/);
+});
+
 test('server contains branded automated email templates', () => {
   const source = require('node:fs').readFileSync('server.js', 'utf8');
   assert.match(source, /Powered by Lee Tech/);
