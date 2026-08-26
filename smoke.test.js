@@ -400,6 +400,16 @@ test('admin journal listing matches its owner-scoped edit and delete handlers', 
   assert.match(source, /findOneAndDelete\(isProduct \? \{ _id: req\.params\.id \} : \{ _id: req\.params\.id, ownerId: null \}/);
 });
 
+test('admin journal overview count matches the owner-scoped journal list', () => {
+  const source = require('node:fs').readFileSync('server.js', 'utf8');
+  assert.match(source, /Post\.countDocuments\(\{ ownerId: null \}\)/);
+  assert.match(source, /app\.get\('\/api\/admin\/posts', \(req, res\) => crud\(Post, req, res, 'list'\)/);
+  assert.match(source, /const filter = isPostModel \? \{ ownerId: null \} : \{\}/);
+  const page = require('node:fs').readFileSync('index.html', 'utf8');
+  assert.match(page, /updateAdminPostBadge\(s\.posts\)/);
+  assert.match(page, /updateAdminPostBadge\(posts\.length\)/);
+});
+
 test('homepage clearly explains the Lee Tech ecosystem and value proposition', async () => {
   const page = await request('/');
   assert.equal(page.status, 200);
