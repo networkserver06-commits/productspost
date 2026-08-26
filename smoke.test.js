@@ -243,6 +243,19 @@ test('creator dashboard uses a functional admin-style dropdown menu', async () =
   assert.match(script.body, /classList\.remove\('open'\)/);
 });
 
+test('admin control center exposes working quick actions and management views', async () => {
+  const shell = await request('/');
+  const script = await request('/app-upgrade.js');
+  for (const label of ['Review users', 'Review payments', 'Add product', 'Write journal', 'Manage pricing', 'View analytics', 'Secure note', 'Check security']) assert.match(shell.body, new RegExp(label));
+  for (const view of ['users', 'finance', 'pricing']) assert.match(shell.body, new RegExp('id="view-' + view + '"'));
+  for (const route of ['/api/admin/users', '/api/admin/finance', '/api/admin/settings', '/api/admin/services']) assert.match(shell.body, new RegExp(route.replaceAll('/', '\\/')));
+  for (const fn of ['loadAdminUsers', 'loadAdminFinance', 'loadAdminSettings', 'loadAdminServices', 'saveAdminSettings', 'saveAdminService', 'adjustAdminWallet']) assert.match(shell.body, new RegExp('function ' + fn));
+  assert.match(shell.body, /admin-quick-grid/);
+  assert.match(shell.body, /data-view="users"/);
+  assert.match(shell.body, /data-view="finance"/);
+  assert.match(shell.body, /data-view="pricing"/);
+});
+
 test('shared links receive dynamic social metadata and a generated PNG card', async () => {
   const page = await request('/leetech?shareTitle=My%20new%20post&shareText=Ideas%20for%20better%20days');
   assert.equal(page.status, 200);
