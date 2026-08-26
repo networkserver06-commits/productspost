@@ -350,6 +350,18 @@ test('homepage clearly explains the Lee Tech ecosystem and value proposition', a
   assert.match(page.body, /A calmer way to stay in the loop/);
 });
 
+test('share dialog provides an accessible Cancel action and polished controls', async () => {
+  const page = await request('/');
+  assert.equal(page.status, 200);
+  assert.match(page.body, /id="shareModal" role="dialog" aria-modal="true"/);
+  assert.match(page.body, /id="shareCancelButton"/);
+  assert.match(page.body, /share-modal-footer/);
+  assert.match(page.body, /Choose a channel or copy the link/);
+  assert.match(page.body, /if\(event\.target\.closest\('#shareCancelButton'\)\)return closeModal\('shareModal'\)/);
+  assert.match(page.body, /share-modal-cancel/);
+  assert.match(page.body, /share-list button/);
+});
+
 test('shared links receive dynamic social metadata and a generated PNG card', async () => {
   const page = await request('/leetech?shareTitle=My%20new%20post&shareText=Ideas%20for%20better%20days');
   assert.equal(page.status, 200);
