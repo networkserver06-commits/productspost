@@ -15,6 +15,7 @@ const sharp = require('sharp');
 
 const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production';
 const MIN_SECRET_LENGTH = 32;
+const ACTIVITY_RETENTION_SECONDS = 24 * 60 * 60;
 function normalizeBaseUrl(value, fallback) { const raw = String(value || fallback).trim(); const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? raw : `https://${raw}`; try { return new URL(withScheme).toString().replace(/\/$/, ''); } catch { return fallback; } }
 function paymentReturnUrl(value, fallback) { try { const url = new URL(normalizeBaseUrl(value, fallback)); url.searchParams.set('payment', 'complete'); url.searchParams.set('destination', 'account'); url.searchParams.set('view', 'wallet'); return url.toString(); } catch { return `${fallback}/?payment=complete&destination=account&view=wallet`; } }
 const APP_URL = normalizeBaseUrl(process.env.APP_URL || process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL, 'http://localhost:3000');
@@ -116,13 +117,36 @@ const signupLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 5, standardHead
 const emailLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 5, standardHeaders: 'draft-7', legacyHeaders: false, message: { error: 'Too many automated email requests. Please try again later.' }, validate: { xForwardedForHeader: false } });
 
 let dbPromise = null;
+let activityRetentionIndexPromise = null;
+async function ensureActivityRetentionIndexes(connection) {
+  if (activityRetentionIndexPromise) return activityRetentionIndexPromise;
+  activityRetentionIndexPromise = Promise.all([
+    ['visitors', 'Visitor activity'],
+    ['securityaudits', 'Security audit activity']
+  ].map(async ([collectionName, label]) => {
+    try {
+      await connection.db.command({ collMod: collectionName, index: { keyPattern: { createdAt: 1 }, expireAfterSeconds: ACTIVITY_RETENTION_SECONDS } });
+    } catch (error) {
+      const message = String(error?.message || '');
+      if (!/not found|cannot find|namespace/i.test(message)) throw error;
+      try {
+        await connection.db.collection(collectionName).createIndex({ createdAt: 1 }, { name: 'createdAt_1', expireAfterSeconds: ACTIVITY_RETENTION_SECONDS });
+      } catch (createError) {
+        createError.message = `${label} retention index setup failed: ${createError.message}`;
+        throw createError;
+      }
+    }
+  }))
+    .catch(error => { activityRetentionIndexPromise = null; throw error; });
+  return activityRetentionIndexPromise;
+}
 async function connectToDatabase() {
   if (mongoose.connection.readyState === 1) return mongoose.connection;
   if (dbPromise) return dbPromise;
   const uri = String(process.env.MONGODB_URI || '').trim();
   if (!uri) throw new Error('MONGODB_URI is not configured');
   dbPromise = mongoose.connect(uri, { serverSelectionTimeoutMS: 10000, maxPoolSize: 10, bufferCommands: false })
-    .then(() => mongoose.connection)
+    .then(async connection => { await ensureActivityRetentionIndexes(connection); return connection; })
     .catch(error => { dbPromise = null; throw error; });
   return dbPromise;
 }
@@ -141,11 +165,11 @@ postSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 postSchema.index({ ownerId: 1, published: 1, createdAt: -1 });
 const visitorSchema = new mongoose.Schema({ ownerId: { type: objectId, ref: 'User', default: null, index: true }, siteUsername: { type: String, default: '', trim: true, lowercase: true, index: true }, path: { type: String, default: '/', maxlength: 200 }, referrer: { type: String, default: 'direct', maxlength: 200 }, device: { type: String, default: 'desktop', maxlength: 20 }, country: { type: String, default: 'unknown', maxlength: 80 }, sessionHash: String, createdAt: { type: Date, default: Date.now } });
 visitorSchema.index({ ownerId: 1, createdAt: -1 });
-visitorSchema.index({ createdAt: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 180 });
+visitorSchema.index({ createdAt: 1 }, { expireAfterSeconds: ACTIVITY_RETENTION_SECONDS });
 const noteSchema = new mongoose.Schema({ ciphertext: { type: String, required: true }, iv: { type: String, required: true }, tag: { type: String, required: true }, createdBy: { type: String, default: 'admin' }, createdAt: { type: Date, default: Date.now }, updatedAt: { type: Date, default: Date.now } });
 const auditSchema = new mongoose.Schema({ event: { type: String, required: true }, username: { type: String, default: '' }, device: { type: String, default: 'unknown' }, userAgent: { type: String, default: '' }, ipHash: { type: String, default: '' }, success: { type: Boolean, default: true }, createdAt: { type: Date, default: Date.now } });
 auditSchema.index({ createdAt: -1 });
-auditSchema.index({ createdAt: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 180 });
+auditSchema.index({ createdAt: 1 }, { expireAfterSeconds: ACTIVITY_RETENTION_SECONDS });
 
 const userSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true, trim: true, lowercase: true, minlength: 3, maxlength: 30, match: /^[a-z0-9](?:[a-z0-9-]{1,28}[a-z0-9])?$/ },
@@ -480,7 +504,7 @@ app.get('/api/products', requireDatabase, async (req, res) => { try { const prod
 app.get('/api/posts', requireDatabase, async (req, res) => { try { const posts = await Post.find({ published: true, ownerId: null }).sort({ createdAt: -1 }).limit(12).lean(); res.set('Cache-Control', 's-maxage=60, stale-while-revalidate=300'); res.json(posts); } catch { res.status(500).json({ error: 'Server error' }); } });
 app.get('/api/public/sites/:username', requireDatabase, async (req, res) => { try { const username = normalizeUsername(req.params.username); const user = await User.findOne({ username, emailVerified: true }).lean(); if (!user) return res.status(404).json({ error: 'Public site not found' }); const content = await Post.find({ ownerId: user._id, published: true }).sort({ createdAt: -1 }).limit(100).lean(); const posts = content.filter(item => item.contentType !== 'product'); const products = content.filter(item => item.contentType === 'product'); res.set('Cache-Control', 's-maxage=60, stale-while-revalidate=300'); res.json(userSite(user, posts, products)); } catch { res.status(500).json({ error: 'Unable to load public site' }); } });
 app.post('/api/analytics/visit', requireDatabase, async (req, res) => { try { const pathValue = clean(req.body.path || '/', 200).startsWith('/') ? clean(req.body.path || '/', 200) : '/'; const candidate = normalizeUsername(req.body.siteUsername || pathValue.split('/').filter(Boolean)[0] || ''); const owner = validUsername(candidate) ? await User.findOne({ username: candidate, emailVerified: true }).select('_id username').lean() : null; await Visitor.create({ ownerId: owner?._id || null, siteUsername: owner?.username || '', path: pathValue, referrer: clean(req.body.referrer || 'direct', 200), device: deviceFromAgent(req.headers['user-agent']), sessionHash: sessionHash(req) }); res.status(204).end(); } catch { res.status(204).end(); } });
-app.get('/api/me/analytics', requireDatabase, userAuth, verifiedUser, async (req, res) => { try { const days = Math.min(Math.max(Number(req.query.days) || 30, 7), 90); const since = new Date(Date.now() - days * 86400000); const match = { ownerId: req.user._id, createdAt: { $gte: since } }; const [summary, daily, devices, sources, pages] = await Promise.all([Visitor.aggregate([{ $match: match }, { $group: { _id: null, visits: { $sum: 1 }, sessions: { $addToSet: '$sessionHash' } } }, { $project: { _id: 0, visits: 1, sessions: { $size: '$sessions' } } }]), Visitor.aggregate([{ $match: match }, { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, visits: { $sum: 1 }, sessions: { $addToSet: '$sessionHash' } } }, { $project: { _id: 0, date: '$_id', visits: 1, sessions: { $size: '$sessions' } } }, { $sort: { date: 1 } }]), Visitor.aggregate([{ $match: match }, { $group: { _id: '$device', value: { $sum: 1 } } }, { $sort: { value: -1 } }]), Visitor.aggregate([{ $match: match }, { $group: { _id: '$referrer', value: { $sum: 1 } } }, { $sort: { value: -1 } }, { $limit: 8 }]), Visitor.aggregate([{ $match: match }, { $group: { _id: '$path', value: { $sum: 1 } } }, { $sort: { value: -1 } }, { $limit: 8 }])]); const overview = summary[0] || { visits: 0, sessions: 0 }; res.json({ days, visits: overview.visits || 0, sessions: overview.sessions || 0, daily, devices, sources, pages }); } catch { res.status(500).json({ error: 'Unable to load your analytics' }); } });
+app.get('/api/me/analytics', requireDatabase, userAuth, verifiedUser, async (req, res) => { try { const days = Math.min(Math.max(Number(req.query.days) || 1, 1), 1); const since = new Date(Date.now() - days * 86400000); const match = { ownerId: req.user._id, createdAt: { $gte: since } }; const [summary, daily, devices, sources, pages] = await Promise.all([Visitor.aggregate([{ $match: match }, { $group: { _id: null, visits: { $sum: 1 }, sessions: { $addToSet: '$sessionHash' } } }, { $project: { _id: 0, visits: 1, sessions: { $size: '$sessions' } } }]), Visitor.aggregate([{ $match: match }, { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, visits: { $sum: 1 }, sessions: { $addToSet: '$sessionHash' } } }, { $project: { _id: 0, date: '$_id', visits: 1, sessions: { $size: '$sessions' } } }, { $sort: { date: 1 } }]), Visitor.aggregate([{ $match: match }, { $group: { _id: '$device', value: { $sum: 1 } } }, { $sort: { value: -1 } }]), Visitor.aggregate([{ $match: match }, { $group: { _id: '$referrer', value: { $sum: 1 } } }, { $sort: { value: -1 } }, { $limit: 8 }]), Visitor.aggregate([{ $match: match }, { $group: { _id: '$path', value: { $sum: 1 } } }, { $sort: { value: -1 } }, { $limit: 8 }])]); const overview = summary[0] || { visits: 0, sessions: 0 }; res.json({ days, visits: overview.visits || 0, sessions: overview.sessions || 0, daily, devices, sources, pages }); } catch { res.status(500).json({ error: 'Unable to load your analytics' }); } });
 app.get('/api/me/security', requireDatabase, userAuth, verifiedUser, async (req, res) => { try { const rows = await SecurityAudit.find({ username: { $in: [req.user.username, req.user.email] } }).sort({ createdAt: -1 }).limit(50).lean(); res.json(rows.map(x => ({ event: x.event, success: x.success, device: x.device, createdAt: x.createdAt }))); } catch { res.status(500).json({ error: 'Unable to load security history' }); } });
 
 app.post('/api/auth/login', loginLimiter, async (req, res) => { const username = clean(req.body.username, 80); const password = String(req.body.password || ''); const valid = username === String(process.env.ADMIN_USERNAME || '') && verifyAdminPassword(password); recordAudit(req, 'sign_in', valid, username); if (valid) { const token = signAdminToken(username); setCookie(res, 'leeAdminSession', token, 60 * 60 * 12); return res.json({ token, message: 'Login successful', device: deviceFromAgent(req.headers['user-agent']) }); } res.status(401).json({ error: 'Invalid credentials' }); });

@@ -181,6 +181,24 @@ test('new accounts receive an auditable KES 10 welcome credit', () => {
   assert.match(source, /Your new creator account includes a free <strong>KES 10\.00 welcome credit<\/strong>/);
 });
 
+test('activity retention expires only non-essential operational records after 24 hours', async () => {
+  const source = require('node:fs').readFileSync('server.js', 'utf8');
+  assert.match(source, /const ACTIVITY_RETENTION_SECONDS = 24 \* 60 \* 60/);
+  assert.match(source, /visitorSchema\.index\(\{ createdAt: 1 \}, \{ expireAfterSeconds: ACTIVITY_RETENTION_SECONDS \}\)/);
+  assert.match(source, /auditSchema\.index\(\{ createdAt: 1 \}, \{ expireAfterSeconds: ACTIVITY_RETENTION_SECONDS \}\)/);
+  assert.match(source, /collMod/);
+  assert.match(source, /activityRetentionIndexPromise/);
+  for (const modelDeclaration of ['const paymentSchema', 'const walletTransactionSchema', 'const purchaseSchema', 'const noteSchema', 'const userSchema', 'const postSchema', 'const productSchema']) {
+    const start = source.indexOf(modelDeclaration);
+    const end = source.indexOf(');', start) + 2;
+    assert.ok(start >= 0 && end > start, `missing model declaration: ${modelDeclaration}`);
+    assert.doesNotMatch(source.slice(start, end), /expireAfterSeconds/);
+  }
+  const script = await request('/app-upgrade.js');
+  assert.match(script.body, /Operational activity expires after 24 hours/);
+  assert.match(script.body, /Kept for 24 hours/);
+});
+
 test('posting exposes authoritative pricing, secure validation, and wallet receipts', async () => {
   const source = require('node:fs').readFileSync('server.js', 'utf8');
   const script = await request('/app-upgrade.js');
