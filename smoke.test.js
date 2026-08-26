@@ -259,6 +259,15 @@ test('admin control center exposes working quick actions and management views', 
   assert.match(shell.body, /id==='pricing'\)await Promise\.all/);
 });
 
+test('homepage clearly explains the Lee Tech ecosystem and value proposition', async () => {
+  const page = await request('/');
+  assert.equal(page.status, 200);
+  for (const phrase of ['curated technology studio and creator marketplace', 'What Lee Tech is about', 'Curated tools', 'Creator spaces', 'Human support', 'Discover with intention', 'Create your own signal', 'Keep moving together']) assert.match(page.body, new RegExp(phrase));
+  for (const anchor of ['id="about"', 'id="products"', 'id="studio"', 'id="journal"', 'id="community"']) assert.match(page.body, new RegExp(anchor));
+  assert.match(page.body, /Find your next tool/);
+  assert.match(page.body, /A calmer way to stay in the loop/);
+});
+
 test('shared links receive dynamic social metadata and a generated PNG card', async () => {
   const page = await request('/leetech?shareTitle=My%20new%20post&shareText=Ideas%20for%20better%20days');
   assert.equal(page.status, 200);
