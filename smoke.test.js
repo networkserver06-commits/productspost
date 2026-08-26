@@ -188,6 +188,15 @@ test('posting exposes authoritative pricing, secure validation, and wallet recei
   assert.match(source, /expectedPriceMinor/);
   assert.match(source, /POST_PRICE_CHANGED/);
   assert.match(source, /balanceAfterMinor/);
+  assert.match(source, /contentType = 'product'/);
+  assert.match(source, /contentType\);/);
+  assert.match(source, /Product publishing:/);
+  assert.match(script.body, /Blogs and journal posts are free to publish/);
+  assert.match(script.body, /Product publishing fee/);
+  assert.match(script.body, /Product fee is shown before you confirm · Blogs are free/);
+  assert.match(source, /normalized\.contentType/);
+  assert.match(source, /chargedMinor/);
+  assert.match(source, /balanceAfterMinor/);
   assert.match(source, /Physical products require a stock quantity/);
   assert.match(script.body, /upgradePostCostBox/);
   assert.match(script.body, /confirm\(review\)/);
@@ -195,6 +204,23 @@ test('posting exposes authoritative pricing, secure validation, and wallet recei
   assert.match(script.body, /balanceAfterMinor/);
   assert.match(script.body, /Edit product/);
   assert.match(script.body, /Cancel edit/);
+  assert.match(source, /app\.delete\('\/api\/me\/posts\/:id', requireDatabase, userAuth, verifiedUser/);
+  assert.match(script.body, /data-upgrade-delete-post/);
+  assert.match(script.body, /data-upgrade-delete-kind/);
+  assert.match(script.body, /Wallet charges are not refunded/);
+  assert.match(script.body, /This action cannot be undone/);
+  assert.match(script.body, /upgrade-danger-action/);
+  assert.match(script.body, /deletePost\(button\.dataset\.upgradeDeletePost/);
+});
+
+test('admin pricing labels the product fee and keeps blogs free', async () => {
+  const page = await request('/');
+  assert.equal(page.status, 200);
+  assert.match(page.body, /Product publishing price/);
+  assert.match(page.body, /Product publishing fee \(KES\)/);
+  assert.match(page.body, /Blogs and journal posts are free/);
+  assert.match(page.body, /Current product fee/);
+  assert.match(page.body, /product-publishing fee/);
 });
 
 test('creator dashboard capabilities are wired to owner-scoped routes', async () => {
