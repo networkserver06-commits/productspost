@@ -251,6 +251,14 @@ test('admin control center exposes working quick actions and management views', 
   for (const route of ['/api/admin/users', '/api/admin/finance', '/api/admin/settings', '/api/admin/services']) assert.match(shell.body, new RegExp(route.replaceAll('/', '\\/')));
   for (const fn of ['loadAdminUsers', 'loadAdminFinance', 'loadAdminSettings', 'loadAdminServices', 'saveAdminSettings', 'saveAdminService', 'adjustAdminWallet']) assert.match(shell.body, new RegExp('function ' + fn));
   assert.match(shell.body, /admin-quick-grid/);
+  for (const action of ['users', 'finance', 'add-product', 'write-journal', 'pricing', 'analytics', 'new-note', 'security']) assert.match(shell.body, new RegExp('data-admin-action="' + action + '"'));
+  assert.doesNotMatch(shell.body, /admin-quick-action" onclick=/);
+  assert.match(shell.body, /function handleAdminQuickAction/);
+  assert.match(shell.body, /function updateAdminPostBadge/);
+  assert.match(shell.body, /updateAdminPostBadge\(s\.posts\)/);
+  assert.match(shell.body, /updateAdminPostBadge\(posts\.length\)/);
+  assert.match(shell.body, /data-admin-post-count/);
+  assert.match(shell.body, /badge\.hidden=total===0/);
   assert.match(shell.body, /data-view="users"/);
   assert.match(shell.body, /data-view="finance"/);
   assert.match(shell.body, /data-view="pricing"/);
