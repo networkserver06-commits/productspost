@@ -238,11 +238,13 @@ test('admin pricing labels the product fee and keeps blogs free', async () => {
   assert.match(page.body, /Product publishing fee \(KES\)/);
   assert.match(page.body, /Blogs and journal posts are free/);
   assert.match(page.body, /Current product fee/);
-  assert.match(page.body, /Settings saved\./);
-  assert.match(page.body, /Availability controls/);
-  assert.match(page.body, /Pause new sign-ups/);
-  assert.match(page.body, /Payment maintenance mode/);
   assert.match(page.body, /Database & health/);
+  assert.match(page.body, /Site maintenance/);
+  assert.match(page.body, /Payment availability/);
+  assert.match(page.body, /Signup controls/);
+  assert.match(page.body, /data-admin-action="maintenance"/);
+  assert.match(page.body, /data-admin-action="payments-control"/);
+  assert.match(page.body, /data-admin-action="signups-control"/);
 });
 
 test('admin health and availability controls are protected and server-enforced', async () => {
@@ -264,6 +266,11 @@ test('admin health and availability controls are protected and server-enforced',
   assert.match(script.body, /leePublicConfig/);
   assert.match(script.body, /New sign-ups are paused/);
   assert.match(script.body, /Sign-ups paused/);
+  const shellWithControls = await request('/');
+  assert.match(shellWithControls.body, /saveAvailabilitySetting/);
+  assert.match(shellWithControls.body, /Site maintenance.*enabled/);
+  assert.match(shellWithControls.body, /Payment availability.*enabled/);
+  assert.match(shellWithControls.body, /Signup controls.*enabled/);
 });
 
 test('creator dashboard capabilities are wired to owner-scoped routes', async () => {
