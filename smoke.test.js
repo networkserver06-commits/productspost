@@ -404,6 +404,20 @@ test('admin products support service-only price-on-request mode without changing
   assert.match(server, /price: priceOnRequest \? 0 : Number\(body\.price\)/);
 });
 
+test('request-priced services use the customer inquiry popup before WhatsApp', async () => {
+  const page = await request('/');
+  assert.equal(page.status, 200);
+  assert.match(page.body, /id="inquiryModal"/);
+  assert.match(page.body, /id="inquiryName"/);
+  assert.match(page.body, /id="inquiryContact"/);
+  assert.match(page.body, /id="inquiryMessage"/);
+  assert.match(page.body, /submitInquiry\(event\)/);
+  assert.match(page.body, /openInquiry\(contact\.dataset\.contactName,contact\)/);
+  assert.match(page.body, /Please complete your name, contact, and request details/);
+  assert.match(page.body, /request pricing for \$\{inquiryTargetName\}/);
+  assert.match(page.body, /Continue to WhatsApp/);
+});
+
 test('admin journal listing matches its owner-scoped edit and delete handlers', () => {
   const source = require('node:fs').readFileSync('server.js', 'utf8');
   assert.match(source, /const isPostModel = model === Post/);
