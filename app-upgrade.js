@@ -672,13 +672,17 @@
     if (view === 'finance') loadAdminFinance();
     if (view === 'pricing') loadAdminPricing();
   }
+  async function adminSuspendUser(id, suspended) { const action = suspended ? 'suspend' : 'reinstate'; if (!window.confirm(`Are you sure you want to ${action} this creator account?`)) return; try { await adminRequest(`/api/admin/users/${encodeURIComponent(id)}/suspension`, { method: 'PUT', body: JSON.stringify({ suspended, reason: suspended ? 'Suspended by administrator' : '' }) }); notify(suspended ? 'Creator suspended successfully.' : 'Creator reinstated successfully.', 'success'); await loadAdminUsers(); } catch (error) { notify(error.message, 'error'); } }
+  async function adminDeleteUser(id, username) { if (!window.confirm(`Permanently delete @${username} and all associated creator data? This cannot be undone.`)) return; if (!window.confirm('Final confirmation: delete this creator account, posts, visitor analytics, wallet activity, payments, and purchases?')) return; try { await adminRequest(`/api/admin/users/${encodeURIComponent(id)}`, { method: 'DELETE' }); notify('Creator account and associated data deleted.', 'success'); await loadAdminUsers(); } catch (error) { notify(error.message, 'error'); } }
   async function loadAdminUsers() {
     const table = document.getElementById('upgradeUsersTable');
     if (!table) return;
     try {
       const search = document.getElementById('upgradeUserSearch')?.value || '';
       const users = await adminRequest(`/api/admin/users?search=${encodeURIComponent(search)}`);
-      table.innerHTML = users.length ? users.map(user => `<div class="table-row"><span><b>${escapeHtml(user.username)}</b><br><span class="muted">${escapeHtml(user.email)} · ${user.emailVerified ? 'Verified' : 'Unverified'} · ${escapeHtml(user.siteUrl)}</span></span><span><b>${money(user.walletBalanceMinor)}</b><br><small class="muted">${new Date(user.createdAt).toLocaleDateString()}</small></span></div>`).join('') : '<div class="empty">No users found.</div>';
+      table.innerHTML = users.length ? users.map(user => `<div class="table-row"><span><b>${escapeHtml(user.username)}</b><br><span class="muted">${escapeHtml(user.email)} · ${user.emailVerified ? 'Verified' : 'Unverified'} · ${user.suspended ? 'Suspended' : 'Active'} · ${escapeHtml(user.siteUrl)}</span></span><span><b>${money(user.walletBalanceMinor)}</b><br><small class="muted">${new Date(user.createdAt).toLocaleDateString()}</small><br><button class="ghost" data-admin-suspend="${escapeHtml(user.id)}" data-suspended="${user.suspended ? 'false' : 'true'}">${user.suspended ? 'Reinstate' : 'Suspend'}</button> <button class="ghost danger" data-admin-delete-user="${escapeHtml(user.id)}" data-admin-delete-username="${escapeHtml(user.username)}">Delete</button></span></div>`).join('') : '<div class="empty">No users found.</div>';
+      table.querySelectorAll('[data-admin-suspend]').forEach(button => button.addEventListener('click', () => adminSuspendUser(button.dataset.adminSuspend, button.dataset.suspended === 'true')));
+      table.querySelectorAll('[data-admin-delete-user]').forEach(button => button.addEventListener('click', () => adminDeleteUser(button.dataset.adminDeleteUser, button.dataset.adminDeleteUsername)));
     } catch (error) { table.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`; notify(error.message, 'error'); }
   }
   async function loadAdminFinance() {

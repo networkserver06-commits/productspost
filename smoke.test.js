@@ -595,3 +595,26 @@ test('moderation UI provides review actions, toast feedback, and public refresh'
   assert.match(shell.body, /loadSite\(true\)/);
   assert.match(shell.body, /if\(view==='moderation'\)loadModeration\(\)/);
 });
+
+test('admin creator security controls are protected and suspension is enforced', async () => {
+  const source = require('node:fs').readFileSync('server.js', 'utf8');
+  const script = await request('/app-upgrade.js');
+  assert.match(source, /suspended: \{ type: Boolean, default: false/);
+  assert.match(source, /if \(user\.suspended\) return res\.status\(403\)/);
+  assert.match(source, /app\.put\('\/api\/admin\/users\/:id\/suspension'/);
+  assert.match(source, /app\.delete\('\/api\/admin\/users\/:id'/);
+  assert.match(source, /role: 'user'/);
+  assert.match(source, /Post\.deleteMany\(\{ ownerId: user\._id \}\)/);
+  assert.match(source, /Visitor\.deleteMany\(\{ ownerId: user\._id \}\)/);
+  assert.match(source, /WalletTransaction\.deleteMany\(\{ userId: user\._id \}\)/);
+  assert.match(source, /PaymentTransaction\.deleteMany\(\{ userId: user\._id \}\)/);
+  assert.match(source, /Purchase\.deleteMany\(\{ userId: user\._id \}\)/);
+  assert.match(source, /This creator account is suspended/);
+  assert.match(source, /app\.post\('\/api\/auth\/login', loginLimiter/);
+  assert.match(script.body, /adminSuspendUser/);
+  assert.match(script.body, /adminDeleteUser/);
+  assert.match(script.body, /Permanently delete @/);
+  assert.match(script.body, /Creator suspended successfully/);
+  assert.match(script.body, /data-admin-suspend/);
+  assert.match(script.body, /data-admin-delete-user/);
+});
