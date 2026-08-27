@@ -565,3 +565,30 @@ test('shared product links use the product image with a homepage fallback', asyn
   assert.match(server, /data:image/);
   assert.match(server, /external\.protocol === 'https:/);
 });
+
+test('moderation is protected and preserves admin login and direct access contracts', async () => {
+  const source = require('node:fs').readFileSync('server.js', 'utf8');
+  const shell = await request('/');
+  assert.match(shell.body, /data-view="moderation"/);
+  assert.match(shell.body, /id="view-moderation"/);
+  assert.match(shell.body, /api\/admin\/moderation/);
+  assert.match(source, /app\.use\('\/api\/admin', requireDatabase, adminLimiter, adminAuth\)/);
+  assert.match(source, /app\.get\('\/api\/admin\/moderation'/);
+  assert.match(source, /app\.put\('\/api\/admin\/moderation\/:type\/:id'/);
+  assert.match(source, /moderationStatus: 'pending'/);
+  assert.match(source, /moderationStatus: action === 'approve' \? 'approved' : 'rejected'/);
+  assert.match(source, /moderation_\$\{action\}/);
+  assert.match(source, /published: action === 'approve'/);
+  assert.match(source, /moderationStatus: \{ \$exists: false \}/);
+  assert.match(source, /app\.post\('\/api\/auth\/login', loginLimiter/);
+});
+
+test('moderation UI provides review actions, toast feedback, and public refresh', async () => {
+  const shell = await request('/');
+  assert.match(shell.body, /Approve/);
+  assert.match(shell.body, /Reject/);
+  assert.match(shell.body, /Content approved and published/);
+  assert.match(shell.body, /Content rejected and hidden/);
+  assert.match(shell.body, /loadSite\(true\)/);
+  assert.match(shell.body, /if\(view==='moderation'\)loadModeration\(\)/);
+});
