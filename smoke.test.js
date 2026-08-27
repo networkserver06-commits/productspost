@@ -485,6 +485,10 @@ test('shared links receive dynamic metadata and the Lee Tech homepage PNG visual
   const legacyCard = await request('/share-card.png?title=My%20new%20post&subtitle=Ideas%20for%20better%20days');
   assert.equal(legacyCard.status, 200);
   assert.match(legacyCard.headers['content-type'], /image\/png/);
+  const server = require('node:fs').readFileSync('server.js', 'utf8');
+  assert.match(server, /function wrapShareText\(/);
+  assert.match(server, /font-family="DejaVu Sans"/);
+  assert.match(server, /Powered by Lee Tech/);
 });
 
 test('shared product links use the product image with a homepage fallback', async () => {
