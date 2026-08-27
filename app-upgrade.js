@@ -60,6 +60,17 @@
   function escapeHtml(value = '') {
     return String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
   }
+  function safePublicUrl(value = '') {
+    try {
+      const url = new URL(String(value || '').trim(), window.location.origin);
+      if (url.protocol === 'https:' || url.origin === window.location.origin) return url.toString();
+    } catch {}
+    return '';
+  }
+  function publicPostLink(post) {
+    const href = safePublicUrl(post?.visitorLink);
+    return href ? `<a class="ghost upgrade-post-link" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">Follow link ↗</a>` : '';
+  }
   function money(minor = 0, currency = 'KES') {
     return new Intl.NumberFormat('en-KE', { style: 'currency', currency, maximumFractionDigits: 2 }).format(Number(minor || 0) / 100);
   }
@@ -609,7 +620,7 @@
       const grid = site.querySelector('#upgradePublicPostGrid');
       const productGrid = site.querySelector('#upgradePublicProductGrid');
       const postCount = site.querySelector('[data-post-count]'); if (postCount) postCount.textContent = String(data.posts.length);
-      grid.innerHTML = data.posts.length ? data.posts.map((post, index) => `<article class="upgrade-post"><div class="upgrade-post-topline"><span>0${index + 1}</span><time>${new Date(post.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</time></div>${post.image ? `<img src="${escapeHtml(post.image)}" alt="${escapeHtml(post.title)}" class="upgrade-post-image" loading="lazy" decoding="async">` : ''}<div class="upgrade-post-kicker">${escapeHtml(post.author || data.user.displayName)} · Lee Tech journal</div><h2>${escapeHtml(post.title)}</h2><p>${escapeHtml(post.content)}</p><div class="upgrade-post-bottom"><span>Published on @${escapeHtml(data.user.username)}</span><button class="ghost upgrade-post-share" type="button" data-share-post data-share-title="${escapeHtml(post.title)}" data-share-text="${escapeHtml(post.excerpt || post.content.slice(0,170))}">Share post ↗</button></div></article>`).join('') : '<div class="upgrade-public-empty"><div class="upgrade-public-empty-icon">✦</div><h3>The first story is on its way.</h3><p>Published blogs from this creator will appear here for their audience.</p><a class="upgrade-public-text-link" href="/">Explore Lee Tech →</a></div>';
+      grid.innerHTML = data.posts.length ? data.posts.map((post, index) => `<article class="upgrade-post"><div class="upgrade-post-topline"><span>0${index + 1}</span><time>${new Date(post.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</time></div>${post.image ? `<img src="${escapeHtml(post.image)}" alt="${escapeHtml(post.title)}" class="upgrade-post-image" loading="lazy" decoding="async">` : ''}<div class="upgrade-post-kicker">${escapeHtml(post.author || data.user.displayName)} · Lee Tech journal</div><h2>${escapeHtml(post.title)}</h2><p>${escapeHtml(post.content)}</p><div class="upgrade-post-bottom"><span>Published on @${escapeHtml(data.user.username)}</span>${publicPostLink(post)}<button class="ghost upgrade-post-share" type="button" data-share-post data-share-title="${escapeHtml(post.title)}" data-share-text="${escapeHtml(post.excerpt || post.content.slice(0,170))}">Share post ↗</button></div></article>`).join('') : '<div class="upgrade-public-empty"><div class="upgrade-public-empty-icon">✦</div><h3>The first story is on its way.</h3><p>Published blogs from this creator will appear here for their audience.</p><a class="upgrade-public-text-link" href="/">Explore Lee Tech →</a></div>';
       productGrid.innerHTML = renderPublicProductCards(data.products || [], data.user.contact || {});
       site.querySelectorAll('[data-share-site]').forEach(button => button.addEventListener('click', () => window.shareItem?.(`${data.user.displayName} — Lee Tech creator site`, data.user.bio || `Published posts from @${data.user.username}.`, '', `${location.origin}${location.pathname}`)));
       site.querySelectorAll('[data-share-post], [data-share-product]').forEach(button => button.addEventListener('click', () => window.shareItem?.(button.dataset.shareTitle, button.dataset.shareText, '', `${location.origin}${location.pathname}`, button.dataset.shareImage || '', button.dataset.shareProductId || '')));

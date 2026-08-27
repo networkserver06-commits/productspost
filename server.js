@@ -160,7 +160,7 @@ function requireDatabase(req, res, next) {
 const objectId = mongoose.Schema.Types.ObjectId;
 const productSchema = new mongoose.Schema({ name: { type: String, required: true, trim: true, maxlength: 120 }, description: { type: String, required: true, trim: true, maxlength: 4000 }, price: { type: Number, required: true, min: 0 }, priceOnRequest: { type: Boolean, default: false }, productType: { type: String, enum: ['digital', 'physical'], default: 'digital' }, stock: { type: Number, min: 0, default: null }, category: { type: String, default: 'General', trim: true, maxlength: 80 }, image: { type: String, default: '', maxlength: 2000000 }, featured: { type: Boolean, default: false }, createdAt: { type: Date, default: Date.now }, expiresAt: { type: Date, default: null } });
 productSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
-const postSchema = new mongoose.Schema({ title: { type: String, required: true, trim: true, maxlength: 180 }, content: { type: String, required: true, trim: true, maxlength: 50000 }, excerpt: { type: String, default: '', trim: true, maxlength: 500 }, image: { type: String, default: '', maxlength: 2000000 }, author: { type: String, default: 'Lee Tech', trim: true, maxlength: 120 }, contentType: { type: String, enum: ['blog', 'product'], default: 'blog' }, productType: { type: String, enum: ['digital', 'physical'], default: 'digital' }, priceMinor: { type: Number, min: 0, default: 0 }, stock: { type: Number, min: 0, default: null }, published: { type: Boolean, default: true }, ownerId: { type: objectId, ref: 'User', default: null, index: true }, ownerUsername: { type: String, default: '', trim: true, index: true }, createdAt: { type: Date, default: Date.now }, updatedAt: { type: Date, default: Date.now }, expiresAt: { type: Date, default: null } });
+const postSchema = new mongoose.Schema({ title: { type: String, required: true, trim: true, maxlength: 180 }, content: { type: String, required: true, trim: true, maxlength: 50000 }, excerpt: { type: String, default: '', trim: true, maxlength: 500 }, visitorLink: { type: String, default: '', trim: true, maxlength: 500 }, image: { type: String, default: '', maxlength: 2000000 }, author: { type: String, default: 'Lee Tech', trim: true, maxlength: 120 }, contentType: { type: String, enum: ['blog', 'product'], default: 'blog' }, productType: { type: String, enum: ['digital', 'physical'], default: 'digital' }, priceMinor: { type: Number, min: 0, default: 0 }, stock: { type: Number, min: 0, default: null }, published: { type: Boolean, default: true }, ownerId: { type: objectId, ref: 'User', default: null, index: true }, ownerUsername: { type: String, default: '', trim: true, index: true }, createdAt: { type: Date, default: Date.now }, updatedAt: { type: Date, default: Date.now }, expiresAt: { type: Date, default: null } });
 postSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 postSchema.index({ ownerId: 1, published: 1, createdAt: -1 });
 const visitorSchema = new mongoose.Schema({ ownerId: { type: objectId, ref: 'User', default: null, index: true }, siteUsername: { type: String, default: '', trim: true, lowercase: true, index: true }, path: { type: String, default: '/', maxlength: 200 }, referrer: { type: String, default: 'direct', maxlength: 200 }, device: { type: String, default: 'desktop', maxlength: 20 }, country: { type: String, default: 'unknown', maxlength: 80 }, sessionHash: String, createdAt: { type: Date, default: Date.now } });
@@ -236,6 +236,21 @@ function normalizeImage(value) {
   if (/^data:image\/(?:jpeg|jpg|png|webp|gif);base64,[A-Za-z0-9+/=]+$/i.test(image)) return image;
   try { const parsed = new URL(image); if (['http:', 'https:'].includes(parsed.protocol)) return parsed.toString(); } catch {}
   throw new Error('Image must be a valid http(s) URL or compressed JPG, PNG, WEBP, or GIF upload');
+}
+async function optimizeProductImage(value) {
+  const image = normalizeImage(value);
+  if (!image || !image.startsWith('data:image/')) return image;
+  const match = image.match(/^data:image\/(?:jpeg|jpg|png|webp|gif);base64,([A-Za-z0-9+/=]+)$/i);
+  if (!match) return image;
+  try {
+    const optimized = await sharp(Buffer.from(match[1], 'base64'), { limitInputPixels: 40000000 }).rotate().resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true }).webp({ quality: 82, effort: 4 }).toBuffer();
+    const result = `data:image/webp;base64,${optimized.toString('base64')}`;
+    if (result.length > 2000000) throw new Error('Image must be 2 MB or smaller after optimization');
+    return result;
+  } catch (error) {
+    if (error.message.includes('2 MB')) throw error;
+    throw new Error('Image upload could not be optimized');
+  }
 }
 function normalizeContentType(value) { return value === 'product' ? 'product' : 'blog'; }
 function normalizeProductType(value) { if (value === 'physical') return 'physical'; if (value === 'digital' || value == null || value === '') return 'digital'; throw new Error('Product type must be digital or physical'); }
@@ -625,7 +640,7 @@ async function crud(model, req, res, action) {
       const productType = isProduct ? normalizeProductType(body.productType) : 'digital';
       const category = isProduct ? clean(body.category || 'General', 80) : '';
       const priceOnRequest = isProduct && category.toLowerCase() === 'services' && (body.priceOnRequest === true || body.priceOnRequest === 'true');
-      const cleanBody = isProduct ? { name: clean(body.name, 120), description: clean(body.description, 4000), price: priceOnRequest ? 0 : Number(body.price), priceOnRequest, productType, stock: normalizeStock(body.stock, productType), category, image: normalizeImage(body.image || ''), featured: Boolean(body.featured) } : { title: clean(body.title, 180), content: clean(body.content, 50000), excerpt: clean(body.excerpt || '', 500), author: clean(body.author || 'Lee Tech', 120), image: normalizeImage(body.image || ''), contentType: 'blog', productType: 'digital', priceMinor: 0, stock: null, published: body.published !== false, ownerId: null, ownerUsername: '' };
+      const cleanBody = isProduct ? { name: clean(body.name, 120), description: clean(body.description, 4000), price: priceOnRequest ? 0 : Number(body.price), priceOnRequest, productType, stock: normalizeStock(body.stock, productType), category, image: await optimizeProductImage(body.image || ''), featured: Boolean(body.featured) } : { title: clean(body.title, 180), content: clean(body.content, 50000), excerpt: clean(body.excerpt || '', 500), visitorLink: normalizeContactUrl(body.visitorLink || '', 'Visitor link'), author: clean(body.author || 'Lee Tech', 120), image: normalizeImage(body.image || ''), contentType: 'blog', productType: 'digital', priceMinor: 0, stock: null, published: body.published !== false, ownerId: null, ownerUsername: '' };
       if (isProduct && (!cleanBody.name || !cleanBody.description || !Number.isFinite(cleanBody.price) || cleanBody.price < 0)) return res.status(400).json({ error: 'Name, description, and a valid price are required' });
       if (!isProduct && (!cleanBody.title || !cleanBody.content)) return res.status(400).json({ error: 'Title and content are required' });
       const duplicate = await model.findOne(isProduct ? { name: cleanBody.name } : { title: cleanBody.title }).lean();
@@ -636,7 +651,7 @@ async function crud(model, req, res, action) {
       const productType = isProduct ? normalizeProductType(body.productType) : 'digital';
       const category = isProduct ? clean(body.category || 'General', 80) : '';
       const priceOnRequest = isProduct && category.toLowerCase() === 'services' && (body.priceOnRequest === true || body.priceOnRequest === 'true');
-      const cleanBody = isProduct ? { name: clean(body.name, 120), description: clean(body.description, 4000), price: priceOnRequest ? 0 : Number(body.price), priceOnRequest, productType, stock: normalizeStock(body.stock, productType), category, image: normalizeImage(body.image || ''), featured: Boolean(body.featured) } : { title: clean(body.title, 180), content: clean(body.content, 50000), excerpt: clean(body.excerpt || '', 500), author: clean(body.author || 'Lee Tech', 120), image: normalizeImage(body.image || ''), contentType: 'blog', productType: 'digital', priceMinor: 0, stock: null, published: body.published !== false, ownerId: null, ownerUsername: '' };
+      const cleanBody = isProduct ? { name: clean(body.name, 120), description: clean(body.description, 4000), price: priceOnRequest ? 0 : Number(body.price), priceOnRequest, productType, stock: normalizeStock(body.stock, productType), category, image: await optimizeProductImage(body.image || ''), featured: Boolean(body.featured) } : { title: clean(body.title, 180), content: clean(body.content, 50000), excerpt: clean(body.excerpt || '', 500), visitorLink: normalizeContactUrl(body.visitorLink || '', 'Visitor link'), author: clean(body.author || 'Lee Tech', 120), image: normalizeImage(body.image || ''), contentType: 'blog', productType: 'digital', priceMinor: 0, stock: null, published: body.published !== false, ownerId: null, ownerUsername: '' };
       if (isProduct && (!cleanBody.name || !cleanBody.description || !Number.isFinite(cleanBody.price) || cleanBody.price < 0)) return res.status(400).json({ error: 'Invalid product fields' });
       if (!isProduct && (!cleanBody.title || !cleanBody.content)) return res.status(400).json({ error: 'Invalid post fields' });
       const duplicate = await model.findOne({ ...(isProduct ? { name: cleanBody.name } : { title: cleanBody.title }), _id: { $ne: req.params.id }, ownerId: isProduct ? undefined : null }).lean();

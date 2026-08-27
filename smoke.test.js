@@ -312,6 +312,26 @@ test('creator publishing supports uploads, separated blogs, and typed products',
   assert.match(script.body, /Save product/);
 });
 
+test('product uploads optimize to WebP and admin blogs expose safe visitor links', async () => {
+  const server = require('node:fs').readFileSync('server.js', 'utf8');
+  const shell = await request('/');
+  const script = await request('/app-upgrade.js');
+  assert.match(server, /async function optimizeProductImage\(/);
+  assert.match(server, /\.webp\(\{ quality: 82, effort: 4 \}\)/);
+  assert.match(server, /image: await optimizeProductImage\(body\.image \|\| ''\)/);
+  assert.match(server, /visitorLink: \{ type: String, default: ''/);
+  assert.match(server, /normalizeContactUrl\(body\.visitorLink \|\| '', 'Visitor link'\)/);
+  assert.match(shell.body, /id="pImageFile"/);
+  assert.match(shell.body, /saved as WebP automatically/);
+  assert.match(shell.body, /id="postVisitorLink"/);
+  assert.match(shell.body, /visitorLink:\$\('#postVisitorLink'\)\.value/);
+  assert.match(shell.body, /function safePostLink\(/);
+  assert.match(shell.body, /post-follow-link/);
+  assert.match(script.body, /function safePublicUrl\(/);
+  assert.match(script.body, /function publicPostLink\(/);
+  assert.match(script.body, /upgrade-post-link/);
+});
+
 test('Paystack initialization and verification follow the documented payment contract', async () => {
   const source = require('node:fs').readFileSync('server.js', 'utf8');
   assert.match(source, /LT-\$\{Date\.now\(\)\}-/);
