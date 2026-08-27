@@ -238,7 +238,32 @@ test('admin pricing labels the product fee and keeps blogs free', async () => {
   assert.match(page.body, /Product publishing fee \(KES\)/);
   assert.match(page.body, /Blogs and journal posts are free/);
   assert.match(page.body, /Current product fee/);
-  assert.match(page.body, /product-publishing fee/);
+  assert.match(page.body, /Settings saved\./);
+  assert.match(page.body, /Availability controls/);
+  assert.match(page.body, /Pause new sign-ups/);
+  assert.match(page.body, /Payment maintenance mode/);
+  assert.match(page.body, /Database & health/);
+});
+
+test('admin health and availability controls are protected and server-enforced', async () => {
+  const source = require('node:fs').readFileSync('server.js', 'utf8');
+  assert.match(source, /app\.get\('\/api\/admin\/health', adminLimiter, adminAuth/);
+  assert.match(source, /dbStats/);
+  assert.match(source, /siteMaintenance/);
+  assert.match(source, /paymentsMaintenance/);
+  assert.match(source, /signupsRestricted/);
+  assert.match(source, /signupRestrictionMessage/);
+  assert.match(source, /paymentsMaintenanceMessage/);
+  const shell = await request('/');
+  assert.match(shell.body, /Database & health/);
+  assert.match(shell.body, /maintenanceBanner/);
+  assert.match(shell.body, /adminSiteMaintenance/);
+  assert.match(shell.body, /adminPaymentsMaintenance/);
+  assert.match(shell.body, /adminSignupsRestricted/);
+  const script = await request('/app-upgrade.js');
+  assert.match(script.body, /leePublicConfig/);
+  assert.match(script.body, /New sign-ups are paused/);
+  assert.match(script.body, /Sign-ups paused/);
 });
 
 test('creator dashboard capabilities are wired to owner-scoped routes', async () => {
