@@ -391,6 +391,19 @@ test('admin control center exposes working quick actions and management views', 
   assert.match(shell.body, /id==='pricing'\)await Promise\.all/);
 });
 
+test('admin products support service-only price-on-request mode without changing fixed products', async () => {
+  const page = await request('/');
+  assert.equal(page.status, 200);
+  assert.match(page.body, /id="pPriceOnRequestField"/);
+  assert.match(page.body, /Price on request/);
+  assert.match(page.body, /Contact for pricing/);
+  assert.match(page.body, /priceOnRequest/);
+  const server = require('node:fs').readFileSync('server.js', 'utf8');
+  assert.match(server, /priceOnRequest: \{ type: Boolean, default: false \}/);
+  assert.match(server, /category\.toLowerCase\(\) === 'services'/);
+  assert.match(server, /price: priceOnRequest \? 0 : Number\(body\.price\)/);
+});
+
 test('admin journal listing matches its owner-scoped edit and delete handlers', () => {
   const source = require('node:fs').readFileSync('server.js', 'utf8');
   assert.match(source, /const isPostModel = model === Post/);
