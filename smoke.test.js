@@ -410,6 +410,18 @@ test('admin journal overview count matches the owner-scoped journal list', () =>
   assert.match(page, /updateAdminPostBadge\(posts\.length\)/);
 });
 
+test('mobile storefront and journal editor use a focused responsive layout', async () => {
+  const page = await request('/');
+  assert.equal(page.status, 200);
+  assert.match(page.body, /@media\(max-width:760px\)\{\.grid\{grid-template-columns:1fr\}/);
+  assert.match(page.body, /\.card-actions\{width:100%\}/);
+  assert.match(page.body, /position:sticky;bottom:0/);
+  assert.match(page.body, /Title and content are required\. Excerpt and cover image are optional/);
+  assert.doesNotMatch(page.body, /id="postAuthor"/);
+  assert.match(page.body, /author:'Lee Tech'/);
+  assert.match(page.body, /upgrade-public-nav\{position:sticky/);
+});
+
 test('homepage clearly explains the Lee Tech ecosystem and value proposition', async () => {
   const page = await request('/');
   assert.equal(page.status, 200);
