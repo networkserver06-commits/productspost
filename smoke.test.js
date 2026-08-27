@@ -575,7 +575,9 @@ test('moderation is protected and preserves admin login and direct access contra
   assert.match(source, /app\.use\('\/api\/admin', requireDatabase, adminLimiter, adminAuth\)/);
   assert.match(source, /app\.get\('\/api\/admin\/moderation'/);
   assert.match(source, /app\.put\('\/api\/admin\/moderation\/:type\/:id'/);
-  assert.match(source, /moderationStatus: 'pending'/);
+  assert.match(source, /moderationStatus: 'approved'/);
+  assert.match(source, /Post\.find\(\{ ownerId: null \}\)/);
+  assert.match(source, /const lookup = type === 'post' \? \{ _id: req\.params\.id, ownerId: null \}/);
   assert.match(source, /moderationStatus: action === 'approve' \? 'approved' : 'rejected'/);
   assert.match(source, /moderation_\$\{action\}/);
   assert.match(source, /published: action === 'approve'/);
@@ -589,6 +591,7 @@ test('moderation UI provides review actions, toast feedback, and public refresh'
   assert.match(shell.body, /Reject/);
   assert.match(shell.body, /Content approved and published/);
   assert.match(shell.body, /Content rejected and hidden/);
+  assert.match(shell.body, /Creator-owned content is published and managed directly by its creator/);
   assert.match(shell.body, /loadSite\(true\)/);
   assert.match(shell.body, /if\(view==='moderation'\)loadModeration\(\)/);
 });
