@@ -192,6 +192,8 @@
     renderAuth();
     overlay.classList.add('open');
   }
+  function openCreatorSignup() { userState.user ? openDashboard() : openAuth('register'); }
+  window.openCreatorSignup = openCreatorSignup;
   function renderAuth() {
     const box = document.getElementById('upgradeAuthContent');
     const mode = userState.mode;
