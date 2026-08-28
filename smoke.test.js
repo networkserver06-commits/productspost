@@ -246,6 +246,9 @@ test('admin pricing labels the product fee and keeps blogs free', async () => {
   assert.match(page.body, /data-admin-action="maintenance"/);
   assert.match(page.body, /data-admin-action="payments-control"/);
   assert.match(page.body, /data-admin-action="signups-control"/);
+  const server = require('node:fs').readFileSync('server.js', 'utf8');
+  assert.match(server, /app\.get\('\/api\/products',[\s\S]*published: \{ \$ne: false \}/);
+  assert.match(server, /app\.get\('\/api\/posts',[\s\S]*ownerId: null,[\s\S]*moderationStatus: \{ \$nin: \['pending', 'rejected'\] \}/);
 });
 
 test('admin health and availability controls are protected and server-enforced', async () => {
