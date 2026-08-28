@@ -252,6 +252,12 @@ test('admin health and availability controls are protected and server-enforced',
   assert.match(source, /app\.get\('\/api\/admin\/health', adminLimiter, adminAuth/);
   assert.match(source, /dbStats/);
   assert.match(source, /siteMaintenance/);
+  assert.match(source, /function isAdminEntryRequest\(req\)/);
+  assert.match(source, /function maintenanceHtml\(message\)/);
+  assert.match(source, /res\.status\(503\)\.type\('html'\)/);
+  assert.match(source, /if \(!isAdminEntryRequest\(req\)\)/);
+  assert.match(source, /Site maintenance in progress/);
+  assert.doesNotMatch(source, /siteMaintenance.*window\.location/);
   assert.match(source, /paymentsMaintenance/);
   assert.match(source, /signupsRestricted/);
   assert.match(source, /signupRestrictionMessage/);

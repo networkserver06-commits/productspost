@@ -729,7 +729,17 @@ app.get('/share-product-image.png', async (req, res) => { const productId = Stri
 app.get('/share-card.png', async (req, res) => { try { const title = clean(req.query.title || 'Lee Tech', 90); const subtitle = clean(req.query.subtitle || 'Technology with intention.', 170); const kicker = clean(req.query.kicker || 'LEE TECH COMMUNITY', 42); const image = await renderShareCard({ title, subtitle, kicker }); res.type('png').set('Cache-Control', 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400').send(image); } catch (error) { console.error('Share-card generation error:', error.message); res.status(500).end(); } });
 app.use('/api', (req, res) => res.status(404).json({ error: 'API route not found' }));
 app.use((err, req, res, next) => { if (err?.message === 'CORS origin is not allowed') return res.status(403).json({ error: 'CORS origin is not allowed' }); console.error(err); return res.status(500).json({ error: 'Server error' }); });
-app.get('*', (req, res) => res.type('html').set('Cache-Control', 'no-store, must-revalidate').send(shareMetadata(req).replaceAll('__CSP_NONCE__', res.locals.cspNonce)));
+function isAdminEntryRequest(req) { return String(req.query.admin || '') === '1' || Boolean(parseCookies(req).leeAdminSession); }
+function maintenanceHtml(message) { return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Lee Tech — Maintenance</title><meta name="robots" content="noindex,nofollow"><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f7f8fb;color:#12233f;font:16px system-ui,-apple-system,sans-serif;padding:24px}.card{width:min(620px,100%);background:#fff;border:1px solid #e5eaf1;border-radius:28px;padding:clamp(28px,6vw,64px);box-shadow:0 24px 70px rgba(22,43,78,.1)}.mark{color:#1f5eff;font-weight:800;letter-spacing:.14em;font-size:12px}.mark:before{content:'';display:inline-block;width:28px;height:2px;background:#1f5eff;margin:0 10px 4px 0}.card h1{font-size:clamp(34px,7vw,62px);letter-spacing:-.06em;line-height:1.05;margin:22px 0 16px}.card p{color:#6d7b92;line-height:1.7;margin:0 0 22px}.status{display:inline-block;padding:8px 12px;border-radius:999px;background:#eef3ff;color:#1f5eff;font-weight:700;font-size:13px}</style></head><body><main class="card"><div class="mark">LEE TECH / CONTROL CENTER</div><h1>We’ll be back shortly.</h1><p>${escapeHtml(message || 'Lee Tech is temporarily unavailable while we make improvements.')}</p><span class="status">Site maintenance in progress</span></main></body></html>`; }
+app.get('*', async (req, res) => {
+  if (!isAdminEntryRequest(req)) {
+    try {
+      const settings = await getSettings();
+      if (settings.siteMaintenance) return res.status(503).type('html').set('Cache-Control', 'no-store, must-revalidate').send(maintenanceHtml(settings.siteMaintenanceMessage));
+    } catch (error) { console.error('Maintenance check unavailable:', error.message); }
+  }
+  return res.type('html').set('Cache-Control', 'no-store, must-revalidate').send(shareMetadata(req).replaceAll('__CSP_NONCE__', res.locals.cspNonce));
+});
 
 if (!isProduction) app.listen(process.env.PORT || 3000, () => console.log(`Lee Tech running on http://localhost:${process.env.PORT || 3000}`));
 module.exports = app;
