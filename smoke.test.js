@@ -281,6 +281,7 @@ test('admin health and availability controls are protected and server-enforced',
   assert.match(script.body, /leePublicConfig/);
   assert.match(script.body, /New sign-ups are paused/);
   assert.match(script.body, /Sign-ups paused/);
+  assert.match(script.body, /\.maintenance-banner\[hidden\]\{display:none!important\}/);
   const shellWithControls = await request('/?admin=1');
   assert.match(shellWithControls.body, /saveAvailabilitySetting/);
   assert.match(shellWithControls.body, /credentials:'include'/);
