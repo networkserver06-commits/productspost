@@ -6,6 +6,7 @@
   const userState = { user: null, wallet: null, mode: 'signin', post: null, pendingUsername: '', postingCostMinor: null, postingCostCurrency: 'KES', postReceipt: null };
   const upgrade = {};
   let pendingUserPostImage = '';
+  let postSaveInFlight = false;
   let upgradeBuildVersion = '';
 
   function setConnectionBanner(online = true) {
@@ -421,8 +422,10 @@
     } catch (error) { const detail = error?.name === 'AbortError' ? 'Paystack checkout timed out. Check your connection and try again.' : error.message; if (message) message.textContent = detail; notify(detail, 'error'); }
     finally { window.clearTimeout(timeout); if (submit) submit.disabled = false; }
   }
+  function createPostSubmissionId() { return `post-${Date.now().toString(36)}-${window.crypto?.randomUUID?.() || Math.random().toString(36).slice(2, 12)}`; }
   async function saveUserPost(event) {
     event.preventDefault();
+    if (postSaveInFlight) { notify('This post is already being saved. Please wait for the current save to finish.', 'info'); return; }
     const form = event.currentTarget;
     const values = Object.fromEntries(new FormData(form).entries());
     const contentType = values.contentType === 'product' ? 'product' : 'blog';
@@ -443,10 +446,17 @@
     if (fee > balance) { message.textContent = `Top up before publishing. Required: ${money(fee, userState.postingCostCurrency)}; available: ${money(balance, userState.postingCostCurrency)}.`; notify('Insufficient balance for this publishing fee.', 'error'); return; }
     const review = isPublishing ? (fee ? `Review product publishing\n\n${money(fee, userState.postingCostCurrency)} will be deducted from your wallet.\nEstimated remaining balance: ${money(balance - fee, userState.postingCostCurrency)}.\n\nContinue only if the title, details, product price, and stock are correct.` : contentType === 'blog' ? 'Review blog publishing\n\nBlogs and journal posts are free. No wallet deduction will be made.\n\nContinue only if the title and content are correct.' : isEditing ? 'Review this product edit\n\nNo additional product-publishing fee will be deducted.\n\nContinue only if all details are correct.' : 'Review product publishing\n\nNo product-publishing fee is currently configured.\n\nContinue only if the product details are correct.') : `Review saving this ${contentType === 'product' ? 'product' : 'blog'} as a draft.\n\nNo wallet deduction will be made.`;
     if (!window.confirm(review)) return;
-    const body = { ...values, title, content, contentType, productType: contentType === 'product' ? values.productType : 'digital', price: contentType === 'product' ? price : '', stock: isPhysical ? stock : '', image: pendingUserPostImage || values.image || '', published: isPublishing, expectedPriceMinor: userState.postingCostMinor };
+    postSaveInFlight = true;
+    const controls = [...form.querySelectorAll('input, textarea, select, button')].map(control => ({ control, disabled: control.disabled }));
+    controls.forEach(({ control }) => { control.disabled = true; });
+    const submit = form.querySelector('button[type="submit"]');
+    if (submit) submit.querySelector('[data-post-save-label]')?.replaceChildren(document.createTextNode(isPublishing ? 'Publishing…' : 'Saving…'));
+    message.textContent = isPublishing ? 'Publishing securely… please wait.' : 'Saving securely… please wait.';
+    const body = { ...values, title, content, contentType, productType: contentType === 'product' ? values.productType : 'digital', price: contentType === 'product' ? price : '', stock: isPhysical ? stock : '', image: pendingUserPostImage || values.image || '', published: isPublishing, expectedPriceMinor: userState.postingCostMinor, clientSubmissionId: createPostSubmissionId() };
     const savedLabel = contentType === 'product' ? 'Product saved successfully.' : 'Blog saved successfully.';
-    try { const result = await request('/api/me/posts' + (userState.post ? `/${userState.post._id}` : ''), { method: userState.post ? 'PUT' : 'POST', body: JSON.stringify(body) }); const chargedMinor = Number(result.chargedMinor || 0); const balanceAfterMinor = Number(result.balanceAfterMinor ?? Math.max(0, balance - chargedMinor)); userState.postReceipt = { chargedMinor, balanceAfterMinor, currency: userState.postingCostCurrency }; userState.post = null; message.textContent = chargedMinor ? `${savedLabel} Deducted ${money(chargedMinor, userState.postingCostCurrency)}. Remaining balance: ${money(balanceAfterMinor, userState.postingCostCurrency)}.` : isEditing ? 'Changes saved. No additional publishing fee was deducted.' : 'Draft saved. No wallet deduction was made.'; notify(chargedMinor ? `${savedLabel} ${money(chargedMinor, userState.postingCostCurrency)} deducted.` : (isEditing ? 'Changes saved with no additional publishing fee.' : 'Draft saved with no deduction.'), 'success'); pendingUserPostImage = ''; form.reset(); renderUserPostImagePreview(); updateUserPostTypeFields(); await loadDashboard(); }
+    try { const result = await request('/api/me/posts' + (userState.post ? `/${userState.post._id}` : ''), { method: userState.post ? 'PUT' : 'POST', body: JSON.stringify(body), headers: { 'Idempotency-Key': body.clientSubmissionId } }); const chargedMinor = Number(result.chargedMinor || 0); const balanceAfterMinor = Number(result.balanceAfterMinor ?? Math.max(0, balance - chargedMinor)); userState.postReceipt = { chargedMinor, balanceAfterMinor, currency: userState.postingCostCurrency }; userState.post = null; message.textContent = chargedMinor ? `${savedLabel} Deducted ${money(chargedMinor, userState.postingCostCurrency)}. Remaining balance: ${money(balanceAfterMinor, userState.postingCostCurrency)}.` : isEditing ? 'Changes saved. No additional publishing fee was deducted.' : 'Draft saved. No wallet deduction was made.'; notify(chargedMinor ? `${savedLabel} ${money(chargedMinor, userState.postingCostCurrency)} deducted.` : (isEditing ? 'Changes saved with no additional publishing fee.' : 'Draft saved with no deduction.'), 'success'); pendingUserPostImage = ''; form.reset(); renderUserPostImagePreview(); updateUserPostTypeFields(); await loadDashboard(); }
     catch (error) { if (error?.priceMinor != null) { userState.postingCostMinor = Number(error.priceMinor); updateUserPostCostPreview(); } message.textContent = error.message; notify(error.message, 'error'); }
+    finally { postSaveInFlight = false; controls.forEach(({ control, disabled }) => { control.disabled = disabled; }); updateUserPostTypeFields(); }
   }
   async function deletePost(id, kind = 'post') {
     if (!id) return;

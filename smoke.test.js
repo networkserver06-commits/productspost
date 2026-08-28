@@ -231,6 +231,14 @@ test('posting exposes authoritative pricing, secure validation, and wallet recei
   assert.match(script.body, /This action cannot be undone/);
   assert.match(script.body, /upgrade-danger-action/);
   assert.match(script.body, /deletePost\(button\.dataset\.upgradeDeletePost/);
+  assert.match(script.body, /postSaveInFlight/);
+  assert.match(script.body, /already being saved/);
+  assert.match(script.body, /clientSubmissionId: createPostSubmissionId\(\)/);
+  assert.match(script.body, /Idempotency-Key/);
+  assert.match(source, /clientSubmissionId: \{ type: String/);
+  assert.match(source, /partialFilterExpression: \{ clientSubmissionId: \{ \$type: 'string' \} \}/);
+  assert.match(source, /idempotent: true/);
+  assert.match(source, /app\.delete\('\/api\/me\/posts\/:id'/);
 });
 
 test('admin pricing labels the product fee and keeps blogs free', async () => {
