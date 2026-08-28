@@ -586,6 +586,7 @@ test('moderation is protected and preserves admin login and direct access contra
 });
 
 test('moderation UI provides review actions, toast feedback, and public refresh', async () => {
+  const source = require('node:fs').readFileSync('index.html', 'utf8');
   const shell = await request('/');
   assert.match(shell.body, /Approve/);
   assert.match(shell.body, /Reject/);
@@ -594,6 +595,7 @@ test('moderation UI provides review actions, toast feedback, and public refresh'
   assert.match(shell.body, /Creator-owned content is published and managed directly by its creator/);
   assert.match(shell.body, /loadSite\(true\)/);
   assert.match(shell.body, /if\(view==='moderation'\)loadModeration\(\)/);
+  assert.match(source, /\$\$\('\[data-moderation-action\]'\)\.forEach/);
 });
 
 test('admin creator security controls are protected and suspension is enforced', async () => {
