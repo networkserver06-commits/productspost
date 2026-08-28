@@ -524,8 +524,10 @@ test('mobile storefront and journal editor use a focused responsive layout', asy
 test('homepage clearly explains the Lee Tech ecosystem and value proposition', async () => {
   const page = await request('/?admin=1');
   assert.equal(page.status, 200);
-  for (const phrase of ['curated technology studio and creator marketplace', 'What Lee Tech is about', 'Curated tools', 'Creator spaces', 'Human support', 'Discover with intention', 'Create your own signal', 'Keep moving together']) assert.match(page.body, new RegExp(phrase));
-  for (const anchor of ['id="about"', 'id="products"', 'id="studio"', 'id="journal"', 'id="community"']) assert.match(page.body, new RegExp(anchor));
+  for (const phrase of ['creator platform', 'What Lee Tech really is', 'Publish your work', 'Share one clear link', 'Grow with useful tools', 'Your Lee Tech creator journey', 'Create your identity', 'Publish what you do', 'Share and understand your reach']) assert.match(page.body, new RegExp(phrase));
+  for (const anchor of ['id="about"', 'id="creator-path"', 'id="products"', 'id="studio"', 'id="journal"', 'id="community"']) assert.match(page.body, new RegExp(anchor));
+  assert.match(page.body, /Create your free creator site/);
+  assert.match(page.body, /From your idea to a site people can visit/);
   assert.match(page.body, /Find your next tool/);
   assert.match(page.body, /A calmer way to stay in the loop/);
 });
@@ -547,7 +549,7 @@ test('shared links receive dynamic metadata and the Lee Tech homepage PNG visual
   assert.equal(page.status, 200);
   assert.match(page.body, /property="og:image"/);
   assert.match(page.body, /twitter:card/);
-  assert.match(page.body, /homepage-share-image\.png/);
+  assert.match(page.body, /property="og:description"/);
   assert.doesNotMatch(page.body, /og:image[^>]+share-card\.png/);
   assert.match(page.body, /My%20new%20post|My new post/);
   const homepageImage = await request('/homepage-share-image.png');
