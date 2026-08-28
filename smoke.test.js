@@ -269,6 +269,8 @@ test('admin health and availability controls are protected and server-enforced',
   assert.match(source, /signupsRestricted/);
   assert.match(source, /signupRestrictionMessage/);
   assert.match(source, /paymentsMaintenanceMessage/);
+  assert.match(source, /Admin settings update failed:/);
+  assert.match(source, /Settings are temporarily unavailable\. Your admin session remains active/);
   const shell = await request('/?admin=1');
   assert.match(shell.body, /Database & health/);
   assert.match(shell.body, /maintenanceBanner/);
@@ -283,6 +285,7 @@ test('admin health and availability controls are protected and server-enforced',
   assert.match(shellWithControls.body, /saveAvailabilitySetting/);
   assert.match(shellWithControls.body, /credentials:'include'/);
   assert.match(shellWithControls.body, /cache:'no-store'/);
+  assert.match(shellWithControls.body, /event\.preventDefault\(\); saveAvailabilitySetting\(event,'site'\); return false/);
   assert.doesNotMatch(shellWithControls.body, /saveAvailabilitySetting[\\s\\S]{0,2200}window\\.location/);
   assert.match(shellWithControls.body, /Site maintenance.*enabled/);
   assert.match(shellWithControls.body, /Payment availability.*enabled/);
