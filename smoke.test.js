@@ -275,6 +275,9 @@ test('admin health and availability controls are protected and server-enforced',
   assert.match(script.body, /Sign-ups paused/);
   const shellWithControls = await request('/');
   assert.match(shellWithControls.body, /saveAvailabilitySetting/);
+  assert.match(shellWithControls.body, /credentials:'include'/);
+  assert.match(shellWithControls.body, /cache:'no-store'/);
+  assert.doesNotMatch(shellWithControls.body, /saveAvailabilitySetting[\\s\\S]{0,2200}window\\.location/);
   assert.match(shellWithControls.body, /Site maintenance.*enabled/);
   assert.match(shellWithControls.body, /Payment availability.*enabled/);
   assert.match(shellWithControls.body, /Signup controls.*enabled/);
