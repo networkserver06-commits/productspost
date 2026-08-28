@@ -125,19 +125,12 @@ async function ensureActivityRetentionIndexes(connection) {
     ['securityaudits', 'Security audit activity']
   ].map(async ([collectionName, label]) => {
     try {
-      await connection.db.command({ collMod: collectionName, index: { keyPattern: { createdAt: 1 }, expireAfterSeconds: ACTIVITY_RETENTION_SECONDS } });
+      await connection.db.collection(collectionName).createIndex({ createdAt: 1 }, { name: 'createdAt_1', expireAfterSeconds: ACTIVITY_RETENTION_SECONDS });
     } catch (error) {
       const message = String(error?.message || '');
-      if (!/not found|cannot find|namespace/i.test(message)) throw error;
-      try {
-        await connection.db.collection(collectionName).createIndex({ createdAt: 1 }, { name: 'createdAt_1', expireAfterSeconds: ACTIVITY_RETENTION_SECONDS });
-      } catch (createError) {
-        createError.message = `${label} retention index setup failed: ${createError.message}`;
-        throw createError;
-      }
+      if (!/already exists|IndexOptionsConflict|IndexKeySpecsConflict|namespace/i.test(message)) console.warn(`[retention] ${label} TTL index could not be verified: ${message}`);
     }
-  }))
-    .catch(error => { activityRetentionIndexPromise = null; throw error; });
+  }));
   return activityRetentionIndexPromise;
 }
 async function connectToDatabase() {

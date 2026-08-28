@@ -186,8 +186,9 @@ test('activity retention expires only non-essential operational records after 24
   assert.match(source, /const ACTIVITY_RETENTION_SECONDS = 24 \* 60 \* 60/);
   assert.match(source, /visitorSchema\.index\(\{ createdAt: 1 \}, \{ expireAfterSeconds: ACTIVITY_RETENTION_SECONDS \}\)/);
   assert.match(source, /auditSchema\.index\(\{ createdAt: 1 \}, \{ expireAfterSeconds: ACTIVITY_RETENTION_SECONDS \}\)/);
-  assert.match(source, /collMod/);
+  assert.match(source, /createIndex\(\{ createdAt: 1 \}, \{ name: 'createdAt_1', expireAfterSeconds: ACTIVITY_RETENTION_SECONDS \}\)/);
   assert.match(source, /activityRetentionIndexPromise/);
+  assert.match(source, /TTL index could not be verified/);
   for (const modelDeclaration of ['const paymentSchema', 'const walletTransactionSchema', 'const purchaseSchema', 'const noteSchema', 'const userSchema', 'const postSchema', 'const productSchema']) {
     const start = source.indexOf(modelDeclaration);
     const end = source.indexOf(');', start) + 2;
