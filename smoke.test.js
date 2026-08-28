@@ -49,7 +49,7 @@ test('upgrade script is served from the same origin', async () => {
 });
 
 test('public navigation hides admin portal while preserving direct admin access', async () => {
-  const shell = await request('/');
+  const shell = await request('/?admin=1');
   assert.equal(shell.status, 200);
   assert.doesNotMatch(shell.body, /id="adminBtn"/);
   assert.match(shell.body, /id="admin"/);
@@ -70,7 +70,7 @@ test('performance and resilience assets are delivered with fresh cache semantics
   assert.equal(offline.status, 200);
   assert.match(offline.headers['cache-control'], /no-store/);
   assert.match(offline.body, /You’re offline for now/);
-  const shell = await request('/');
+  const shell = await request('/?admin=1');
   assert.match(shell.headers['cache-control'], /no-store/);
   assert.match(shell.body, /connectionBanner/);
   assert.match(shell.body, /app-upgrade\.js/);
@@ -83,7 +83,7 @@ test('unknown API routes return JSON 404 instead of the storefront HTML', async 
 });
 
 test('client-side routes receive the nonce-bearing storefront shell', async () => {
-  const response = await request('/leetech');
+  const response = await request('/leetech?admin=1');
   assert.equal(response.status, 200);
   assert.match(response.body, /Content-Security-Policy|Lee Tech/);
   assert.doesNotMatch(response.body, /__CSP_NONCE__/);
@@ -91,7 +91,7 @@ test('client-side routes receive the nonce-bearing storefront shell', async () =
 });
 
 test('automatic refresh and reconnect hooks are wired without private data caching', async () => {
-  const shell = await request('/');
+  const shell = await request('/?admin=1');
   const script = await request('/app-upgrade.js');
   assert.match(shell.body, /setInterval\(\(\)=>\{if\(!document\.hidden&&navigator\.onLine\)/);
   assert.match(shell.body, /checkForAppUpdate\(\)/);
@@ -103,7 +103,7 @@ test('automatic refresh and reconnect hooks are wired without private data cachi
 });
 
 test('toast feedback covers automatic updates and major user actions', async () => {
-  const shell = await request('/');
+  const shell = await request('/?admin=1');
   const script = await request('/app-upgrade.js');
   assert.match(shell.body, /id="toast" role="status" aria-live="polite"/);
   assert.match(shell.body, /Storefront updated automatically/);
@@ -127,7 +127,7 @@ test('auth upgrade includes password visibility and verification-code UX', async
   assert.match(script.body, /confirmPassword/);
   assert.match(script.body, /passwordField/);
   assert.match(script.body, /openAuth\('register'\)/);
-  const shell = await request('/');
+  const shell = await request('/?admin=1');
   assert.match(shell.body, /data-password-toggle/);
 });
 
@@ -233,7 +233,7 @@ test('posting exposes authoritative pricing, secure validation, and wallet recei
 });
 
 test('admin pricing labels the product fee and keeps blogs free', async () => {
-  const page = await request('/');
+  const page = await request('/?admin=1');
   assert.equal(page.status, 200);
   assert.match(page.body, /Product publishing price/);
   assert.match(page.body, /Product publishing fee \(KES\)/);
@@ -257,13 +257,16 @@ test('admin health and availability controls are protected and server-enforced',
   assert.match(source, /function maintenanceHtml\(message\)/);
   assert.match(source, /res\.status\(503\)\.type\('html'\)/);
   assert.match(source, /if \(!isAdminEntryRequest\(req\)\)/);
+  assert.match(source, /Maintenance check unavailable:/);
+  assert.match(source, /res\.status\(503\)\.type\('html'\)/);
+  assert.match(source, /reconnect our services/);
   assert.match(source, /Site maintenance in progress/);
   assert.doesNotMatch(source, /siteMaintenance.*window\.location/);
   assert.match(source, /paymentsMaintenance/);
   assert.match(source, /signupsRestricted/);
   assert.match(source, /signupRestrictionMessage/);
   assert.match(source, /paymentsMaintenanceMessage/);
-  const shell = await request('/');
+  const shell = await request('/?admin=1');
   assert.match(shell.body, /Database & health/);
   assert.match(shell.body, /maintenanceBanner/);
   assert.match(shell.body, /adminSiteMaintenance/);
@@ -273,7 +276,7 @@ test('admin health and availability controls are protected and server-enforced',
   assert.match(script.body, /leePublicConfig/);
   assert.match(script.body, /New sign-ups are paused/);
   assert.match(script.body, /Sign-ups paused/);
-  const shellWithControls = await request('/');
+  const shellWithControls = await request('/?admin=1');
   assert.match(shellWithControls.body, /saveAvailabilitySetting/);
   assert.match(shellWithControls.body, /credentials:'include'/);
   assert.match(shellWithControls.body, /cache:'no-store'/);
@@ -356,7 +359,7 @@ test('creator publishing supports uploads, separated blogs, and typed products',
 
 test('product uploads optimize to WebP and admin blogs expose safe visitor links', async () => {
   const server = require('node:fs').readFileSync('server.js', 'utf8');
-  const shell = await request('/');
+  const shell = await request('/?admin=1');
   const script = await request('/app-upgrade.js');
   assert.match(server, /async function optimizeProductImage\(/);
   assert.match(server, /\.webp\(\{ quality: 82, effort: 4 \}\)/);
@@ -427,7 +430,7 @@ test('creator dashboard uses a functional admin-style dropdown menu', async () =
 });
 
 test('admin control center exposes working quick actions and management views', async () => {
-  const shell = await request('/');
+  const shell = await request('/?admin=1');
   const script = await request('/app-upgrade.js');
   for (const label of ['Review users', 'Review payments', 'Add product', 'Write journal', 'Manage pricing', 'View analytics', 'Secure note', 'Check security']) assert.match(shell.body, new RegExp(label));
   for (const view of ['users', 'finance', 'pricing']) assert.match(shell.body, new RegExp('id="view-' + view + '"'));
@@ -454,7 +457,7 @@ test('admin control center exposes working quick actions and management views', 
 });
 
 test('admin products support service-only price-on-request mode without changing fixed products', async () => {
-  const page = await request('/');
+  const page = await request('/?admin=1');
   assert.equal(page.status, 200);
   assert.match(page.body, /id="pPriceOnRequestField"/);
   assert.match(page.body, /Price on request/);
@@ -467,7 +470,7 @@ test('admin products support service-only price-on-request mode without changing
 });
 
 test('request-priced services use the customer inquiry popup before WhatsApp', async () => {
-  const page = await request('/');
+  const page = await request('/?admin=1');
   assert.equal(page.status, 200);
   assert.match(page.body, /id="inquiryModal"/);
   assert.match(page.body, /id="inquiryName"/);
@@ -500,7 +503,7 @@ test('admin journal overview count matches the owner-scoped journal list', () =>
 });
 
 test('mobile storefront and journal editor use a focused responsive layout', async () => {
-  const page = await request('/');
+  const page = await request('/?admin=1');
   assert.equal(page.status, 200);
   assert.match(page.body, /@media\(max-width:760px\)\{\.grid\{grid-template-columns:1fr\}/);
   assert.match(page.body, /\.card-actions\{width:100%\}/);
@@ -512,7 +515,7 @@ test('mobile storefront and journal editor use a focused responsive layout', asy
 });
 
 test('homepage clearly explains the Lee Tech ecosystem and value proposition', async () => {
-  const page = await request('/');
+  const page = await request('/?admin=1');
   assert.equal(page.status, 200);
   for (const phrase of ['curated technology studio and creator marketplace', 'What Lee Tech is about', 'Curated tools', 'Creator spaces', 'Human support', 'Discover with intention', 'Create your own signal', 'Keep moving together']) assert.match(page.body, new RegExp(phrase));
   for (const anchor of ['id="about"', 'id="products"', 'id="studio"', 'id="journal"', 'id="community"']) assert.match(page.body, new RegExp(anchor));
@@ -521,7 +524,7 @@ test('homepage clearly explains the Lee Tech ecosystem and value proposition', a
 });
 
 test('share dialog provides an accessible Cancel action and polished controls', async () => {
-  const page = await request('/');
+  const page = await request('/?admin=1');
   assert.equal(page.status, 200);
   assert.match(page.body, /id="shareModal" role="dialog" aria-modal="true"/);
   assert.match(page.body, /id="shareCancelButton"/);
@@ -533,7 +536,7 @@ test('share dialog provides an accessible Cancel action and polished controls', 
 });
 
 test('shared links receive dynamic metadata and the Lee Tech homepage PNG visual', async () => {
-  const page = await request('/leetech?shareTitle=My%20new%20post&shareText=Ideas%20for%20better%20days');
+  const page = await request('/leetech?admin=1&shareTitle=My%20new%20post&shareText=Ideas%20for%20better%20days');
   assert.equal(page.status, 200);
   assert.match(page.body, /property="og:image"/);
   assert.match(page.body, /twitter:card/);
@@ -555,18 +558,18 @@ test('shared links receive dynamic metadata and the Lee Tech homepage PNG visual
 
 test('shared product links use the product image with a homepage fallback', async () => {
   const productId = '507f1f77bcf86cd799439011';
-  const page = await request(`/leetech?shareTitle=Product%20launch&shareText=See%20the%20product&shareProduct=${productId}`);
+  const page = await request(`/leetech?admin=1&shareTitle=Product%20launch&shareText=See%20the%20product&shareProduct=${productId}`);
   assert.equal(page.status, 200);
   assert.match(page.body, new RegExp(`/share-product-image\\.png\\?product=${productId}`));
   assert.doesNotMatch(page.body, /og:image[^>]+homepage-share-image\.png/);
-  const fallbackPage = await request('/leetech?shareTitle=Product%20launch&shareProduct=not-an-object-id');
+  const fallbackPage = await request('/leetech?admin=1&shareTitle=Product%20launch&shareProduct=not-an-object-id');
   assert.equal(fallbackPage.status, 200);
   assert.match(fallbackPage.body, /homepage-share-image\.png/);
   const invalidImage = await request('/share-product-image.png?product=not-an-object-id');
   assert.equal(invalidImage.status, 400);
   const script = await request('/app-upgrade.js');
   assert.match(script.body, /data-share-product-id/);
-  const shell = await request('/');
+  const shell = await request('/?admin=1');
   assert.match(shell.body, /share-product-image\.png/);
   assert.match(shell.body, /shareProduct/);
   assert.match(shell.body, /Product image/);
@@ -578,7 +581,7 @@ test('shared product links use the product image with a homepage fallback', asyn
 
 test('moderation is protected and preserves admin login and direct access contracts', async () => {
   const source = require('node:fs').readFileSync('server.js', 'utf8');
-  const shell = await request('/');
+  const shell = await request('/?admin=1');
   assert.match(shell.body, /data-view="moderation"/);
   assert.match(shell.body, /id="view-moderation"/);
   assert.match(shell.body, /api\/admin\/moderation/);
@@ -597,7 +600,7 @@ test('moderation is protected and preserves admin login and direct access contra
 
 test('moderation UI provides review actions, toast feedback, and public refresh', async () => {
   const source = require('node:fs').readFileSync('index.html', 'utf8');
-  const shell = await request('/');
+  const shell = await request('/?admin=1');
   assert.match(shell.body, /Approve/);
   assert.match(shell.body, /Reject/);
   assert.match(shell.body, /Content approved and published/);

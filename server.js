@@ -729,7 +729,10 @@ app.get('*', async (req, res) => {
     try {
       const settings = await getSettings();
       if (settings.siteMaintenance) return res.status(503).type('html').set('Cache-Control', 'no-store, must-revalidate').send(maintenanceHtml(settings.siteMaintenanceMessage));
-    } catch (error) { console.error('Maintenance check unavailable:', error.message); }
+    } catch (error) {
+      console.error('Maintenance check unavailable:', error.message);
+      return res.status(503).type('html').set('Cache-Control', 'no-store, must-revalidate').send(maintenanceHtml('Lee Tech is temporarily unavailable while we reconnect our services.'));
+    }
   }
   return res.type('html').set('Cache-Control', 'no-store, must-revalidate').send(shareMetadata(req).replaceAll('__CSP_NONCE__', res.locals.cspNonce));
 });
