@@ -536,6 +536,7 @@ test('homepage clearly explains the Lee Tech ecosystem and value proposition', a
   for (const phrase of ['creator platform', 'What Lee Tech really is', 'Publish your work', 'Share one clear link', 'Grow with useful tools', 'Your Lee Tech creator journey', 'Create your identity', 'Publish what you do', 'Share and understand your reach']) assert.match(page.body, new RegExp(phrase));
   for (const anchor of ['id="about"', 'id="creator-path"', 'id="products"', 'id="studio"', 'id="journal"', 'id="community"']) assert.match(page.body, new RegExp(anchor));
   assert.match(page.body, /Create your free creator site/);
+  assert.doesNotMatch(page.body, /EST\. 2024/);
   assert.match(page.body, /onclick="window\.openCreatorSignup\(\)"/);
   assert.match(page.body, /From your idea to a site people can visit/);
   assert.match(page.body, /Find your next tool/);
