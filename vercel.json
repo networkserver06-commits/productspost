@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
     "server.js": {
-      "includeFiles": "{index.html,app-upgrade.js,sw.js,offline.html}",
+      "includeFiles": "{index.html,app-upgrade.js,sw.js,offline.html,public/lee-tech-hero.webp}",
       "maxDuration": 30
     }
   }

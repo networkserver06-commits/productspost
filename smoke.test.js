@@ -90,6 +90,18 @@ test('client-side routes receive the nonce-bearing storefront shell', async () =
   assert.match(response.body, /\.upgrade-overlay\{position:fixed/);
 });
 
+test('homepage uses the generated Lee Tech hero image asset', async () => {
+  const shell = await request('/');
+  assert.equal(shell.status, 200);
+  assert.match(shell.body, /has-generated-image/);
+  assert.match(shell.body, /lee-tech-hero\.webp/);
+  const image = await request('/lee-tech-hero.webp');
+  assert.equal(image.status, 200);
+  assert.match(image.headers['content-type'], /image\/webp/);
+  assert.match(image.headers['cache-control'], /immutable/);
+  assert.ok(Buffer.byteLength(image.body) > 1000);
+});
+
 test('automatic refresh and reconnect hooks are wired without private data caching', async () => {
   const shell = await request('/?admin=1');
   const script = await request('/app-upgrade.js');
