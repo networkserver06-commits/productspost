@@ -748,7 +748,10 @@ app.get('*', async (req, res) => {
       if (settings.siteMaintenance) return res.status(503).type('html').set('Cache-Control', 'no-store, must-revalidate').send(maintenanceHtml(settings.siteMaintenanceMessage));
     } catch (error) {
       console.error('Maintenance check unavailable:', error.message);
-      return res.status(503).type('html').set('Cache-Control', 'no-store, must-revalidate').send(maintenanceHtml('Lee Tech is temporarily unavailable while we reconnect our services.'));
+      // Do not interpret a settings/database outage as an intentional maintenance window.
+      // The maintenance page must only be served when the persisted flag is explicitly true;
+      // otherwise a MongoDB cold start or transient network failure can take the whole site
+      // offline and make it impossible for the administrator to disable the flag.
     }
   }
   return res.type('html').set('Cache-Control', 'no-store, must-revalidate').send(shareMetadata(req).replaceAll('__CSP_NONCE__', res.locals.cspNonce));

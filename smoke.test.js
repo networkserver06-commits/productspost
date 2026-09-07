@@ -271,7 +271,7 @@ test('admin health and availability controls are protected and server-enforced',
   assert.match(source, /if \(!isAdminEntryRequest\(req\)\)/);
   assert.match(source, /Maintenance check unavailable:/);
   assert.match(source, /res\.status\(503\)\.type\('html'\)/);
-  assert.match(source, /reconnect our services/);
+  assert.doesNotMatch(source, /reconnect our services/);
   assert.match(source, /Site maintenance in progress/);
   assert.doesNotMatch(source, /siteMaintenance.*window\.location/);
   assert.match(source, /paymentsMaintenance/);
@@ -300,6 +300,13 @@ test('admin health and availability controls are protected and server-enforced',
   assert.match(shellWithControls.body, /Site maintenance.*enabled/);
   assert.match(shellWithControls.body, /Payment availability.*enabled/);
   assert.match(shellWithControls.body, /Signup controls.*enabled/);
+});
+
+test('database settings outages do not incorrectly activate public maintenance mode', async () => {
+  const response = await request('/');
+  assert.equal(response.status, 200);
+  assert.match(response.body, /Lee Tech — Technology with intention/);
+  assert.doesNotMatch(response.body, /Site maintenance in progress/);
 });
 
 test('creator dashboard capabilities are wired to owner-scoped routes', async () => {
