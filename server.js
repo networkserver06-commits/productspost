@@ -757,7 +757,21 @@ app.get('*', async (req, res) => {
       // offline and make it impossible for the administrator to disable the flag.
     }
   }
-  return res.type('html').set('Cache-Control', 'no-store, must-revalidate').send(shareMetadata(req).replaceAll('__CSP_NONCE__', res.locals.cspNonce));
+  let shell = shareMetadata(req);
+  const username = publicPathUsername(req);
+  if (username && !isAdminEntryRequest(req)) {
+    try {
+      await connectToDatabase();
+      const creator = await User.findOne({ username, emailVerified: true, $or: [{ suspended: false }, { suspended: { $exists: false } }] }).select('username displayName bio').lean();
+      if (creator) {
+        const creatorName = creator.displayName || creator.username;
+        const creatorDescription = creator.bio || `Published work and products from ${creatorName} on Lee Tech.`;
+        const structuredData = JSON.stringify({ '@context': 'https://schema.org', '@type': 'ProfilePage', name: `${creatorName} — Lee Tech creator site`, description: creatorDescription, url: `${APP_URL}/${creator.username}`, mainEntity: { '@type': 'Person', name: creatorName, url: `${APP_URL}/${creator.username}` } }).replace(/</g, '\\u003c');
+        shell = shell.replace('</head>', `<meta name="robots" content="index,follow"><link rel="canonical" href="${escapeHtml(`${APP_URL}/${creator.username}`)}"><script nonce="${escapeHtml(res.locals.cspNonce)}" type="application/ld+json">${structuredData}</script></head>`);
+      }
+    } catch (error) { console.error('Creator metadata lookup unavailable:', error.message); }
+  }
+  return res.type('html').set('Cache-Control', 'no-store, must-revalidate').send(shell.replaceAll('__CSP_NONCE__', res.locals.cspNonce));
 });
 
 if (!isProduction) app.listen(process.env.PORT || 3000, () => console.log(`Lee Tech running on http://localhost:${process.env.PORT || 3000}`));

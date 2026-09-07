@@ -209,7 +209,7 @@ test('activity retention expires only non-essential operational records after 24
     assert.doesNotMatch(source.slice(start, end), /expireAfterSeconds/);
   }
   const script = await request('/app-upgrade.js');
-  assert.match(script.body, /Operational activity expires after 24 hours/);
+  assert.match(script.body, /Last 24 hours · privacy-safe retention/);
   assert.match(script.body, /Kept for 24 hours/);
 });
 
@@ -374,6 +374,23 @@ test('public username sites include customer-facing share and contact actions', 
   assert.match(script.body, /upgrade-public-empty \.upgrade-public-text-link\{color:#1f5eff/);
   assert.match(script.body, /upgrade-public-cta \.upgrade-public-eyebrow\{color:#20735b/);
   assert.match(script.body, /box-sizing:border-box/);
+});
+
+test('creator analytics clearly reflects privacy-safe 24-hour retention', async () => {
+  const script = await request('/app-upgrade.js');
+  assert.match(script.body, /Last 24 hours · privacy-safe retention/);
+  const server = require('node:fs').readFileSync('server.js', 'utf8');
+  assert.match(server, /Number\(req\.query\.days\) \|\| 1, 1\), 1/);
+  assert.match(server, /ACTIVITY_RETENTION_SECONDS = 24 \* 60 \* 60/);
+});
+
+test('public creator pages receive indexable profile metadata when available', () => {
+  const server = require('node:fs').readFileSync('server.js', 'utf8');
+  assert.match(server, /ProfilePage/);
+  assert.match(server, /rel="canonical"/);
+  assert.match(server, /name="robots" content="index,follow/);
+  assert.match(server, /creator\.displayName/);
+  assert.match(server, /application\/ld\+json/);
 });
 
 test('creator publishing supports uploads, separated blogs, and typed products', async () => {
