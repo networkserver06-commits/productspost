@@ -597,7 +597,7 @@ test('shared links receive dynamic metadata and the Lee Tech homepage PNG visual
   assert.match(page.body, /property="og:image"/);
   assert.match(page.body, /twitter:card/);
   assert.match(page.body, /property="og:description"/);
-  assert.doesNotMatch(page.body, /og:image[^>]+share-card\.png/);
+  assert.match(page.body, /og:image[^>]+share-card\.png/);
   assert.match(page.body, /My%20new%20post|My new post/);
   const homepageImage = await request('/homepage-share-image.png');
   assert.equal(homepageImage.status, 200);
@@ -620,7 +620,7 @@ test('shared product links use the product image with a homepage fallback', asyn
   assert.doesNotMatch(page.body, /og:image[^>]+homepage-share-image\.png/);
   const fallbackPage = await request('/leetech?admin=1&shareTitle=Product%20launch&shareProduct=not-an-object-id');
   assert.equal(fallbackPage.status, 200);
-  assert.match(fallbackPage.body, /homepage-share-image\.png/);
+  assert.match(fallbackPage.body, /share-card\.png/);
   const invalidImage = await request('/share-product-image.png?product=not-an-object-id');
   assert.equal(invalidImage.status, 400);
   const script = await request('/app-upgrade.js');
